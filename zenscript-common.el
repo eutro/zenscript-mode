@@ -212,7 +212,10 @@ If PROMPT is non-nil, the cache may be recalculated, most likely prompting the u
       (when prompt (zenscript-calculate-dumpzs-cache (zenscript-get-dumpzs-location)))))
 
 (defun zenscript-get-dumpzs-location ()
-  "Resolve zs_export.json in a parent directory, or prompt if it could not be found."
+  "Resolve /ct dumpzs outpus.
+
+If they cannot be found relative to a parent dir containing crafttweaker.log,
+prompt the user instead."
   (let ((file (buffer-file-name)))
     (when file
       (let* ((minecraft-root (locate-dominating-file file "crafttweaker.log"))

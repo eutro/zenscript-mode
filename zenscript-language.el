@@ -444,6 +444,77 @@ imports:
 (defun zenscript--parse-zentype (tokens)
   "Parse the next ZenType from TOKENS.
 
+A ZenType is represented as a list of the following format:
+
+ (category . value)
+
+value:
+
+  The value of the ZenType.  What `value` is depends on
+  the type, described below.
+
+category:
+
+  A symbol, the category of the ZenType.
+  This may be any of those below.  The format of
+  `value` is also written for each entry:
+
+  C_RAW: (name)
+
+    A raw type is the simplest possible type.
+    It has one value, its name, a string denoting
+    its fully qualified name, as it may be imported
+    or referenced without import.
+
+    name:
+
+      The name of the ZenType.
+
+  C_FUNCTION: (argument-types return-type)
+
+    A function type.  This is the type of
+    a function object that can be called.
+
+    argument-types:
+
+      A list of ZenTypes that are the types
+      of the function arguments.
+
+    return-type:
+
+      The ZenType returned by calling this function.
+
+  C_LIST: (elem-type)
+
+    A list type.  This would be equivalent to
+    java.util.List<elem-type> in Java.
+
+    elem-type:
+
+      The ZenType of elements in the list.
+
+  C_ARRAY: (elem-type)
+
+    A Java array type.  This would be equivalent to
+    elem-type[] in Java.
+
+    elem-type:
+
+      The ZenType of elements in the array.
+
+  C_ASSOCIATIVE: (key-type val-type)
+
+    A map type.  This would be equivalent to
+    java.util.Map<key-type, val-type> in Java.
+
+    key-type:
+
+      The ZenType of keys in this map.
+
+    val-type:
+
+      The ZenType of values in this map.
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((next (zenscript--get-token tokens))
 	base)
@@ -494,6 +565,72 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-expression (tokens)
   "Parse the next expression from TOKENS.
 
+An expression is a list of the form:
+
+ (type . value)
+
+type:
+
+  The type of expression.  See below for possible expressions.
+
+value:
+
+  The value of the expression, varies by type.
+
+Each layer of `zenscript--parse-<layer>` except the last
+delegates to a layer below.  See each layer for
+details on the possible expression types at each layer.
+
+
+This layer delegates to `zenscript--parse-conditional`.
+
+This layer reads the following expressions:
+
+ (delegated) represents a function call to the next layer
+ (recursive) represents a recursive call
+ T_...       represents a token of the type T_...
+
+  E_ASSIGN: (delegated) | T_ASSIGN | (recursive)
+            v           | _        | v
+            -----------------------------------
+            left        | _        | right
+
+    value: (left right)
+
+  E_OPASSIGN: (delegated) | T_PLUSASSIGN  | (recursive)
+              v           | O_PLUS        | v
+              -----------------------------------------
+              (delegated) | T_MINUSASSIGN | (recursive)
+              v           | O_MINUS       | v
+              -----------------------------------------
+              (delegated) | T_TILDEASSIGN | (recursive)
+              v           | O_TILDE       | v
+              -----------------------------------------
+              (delegated) | T_MULASSIGN   | (recursive)
+              v           | O_MUL         | v
+              -----------------------------------------
+              (delegated) | T_DIVASSIGN   | (recursive)
+              v           | O_DIV         | v
+              -----------------------------------------
+              (delegated) | T_MODASSIGN   | (recursive)
+              v           | O_MOD         | v
+              -----------------------------------------
+              (delegated) | T_ORASSIGN    | (recursive)
+              v           | O_OR          | v
+              -----------------------------------------
+              (delegated) | T_ANDASSIGN   | (recursive)
+              v           | O_AND         | v
+              -----------------------------------------
+              (delegated) | T_XORASSIGN   | (recursive)
+              v           | O_XOR         | v
+              -----------------------------------------
+              (delegated) | T_PLUSASSIGN  | (recursive)
+              v           | O_PLUS        | v
+              -----------------------------------------
+              left        | op            | right
+
+    value: (left right op)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((token (zenscript--peek-token tokens))
 	position left)
@@ -543,19 +680,38 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-conditional (tokens)
   "Possibly read a conditional expression from TOKENS.
 
+This layer delegates to `zenscript--parse-or-or`.
+
+This layer reads the following expressions:
+
+ (delegated) represents a function call to the next layer
+ (recursive) represents a recursive call
+ T_...       represents a token of the type T_...
+
+  E_CONDITIONAL: (delegated) | T_QUEST | (delegated) | T_COLON | (recursive)
+                 v           | _       | v           | v       | v
+                 -----------------------------------------------------------
+                 predicate   | _       | then        | _       | else
+
+    value: (predicate then else)
+
+  ?: (delegated)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((left (zenscript--parse-or-or tokens)))
     (if-let (quest (zenscript--optional-token 'T_QUEST tokens))
 	(list 'E_CONDITIONAL
+	      left
 	      (zenscript--parse-or-or-expression tokens)
 	      (progn (zenscript--require-token 'T_COLON tokens
 					       ": expected")
-		     (zenscript--parse-conditional tokens))
-	      (caddr quest))
+		     (zenscript--parse-conditional tokens)))
       left)))
 
 (defun zenscript--parse-binary (token-type expression-type tokens parse-next)
   "Convenience function for the binary expressions below.
+
+TOKENS is the tokenstream to read from.
 
 TOKEN-TYPE is the token representing this operation.
 
@@ -573,12 +729,34 @@ PARSE-NEXT is the function to delegate to."
 (defun zenscript--parse-or-or (tokens)
   "Possibly read an expression using ||s from TOKENS.
 
+Delegates to `zenscript--parse-and-and`
+
+Reads:
+
+  E_OR2: (recursive) | T_OR2 | (delegated)
+         v           |       | v
+         ---------------------------------
+         left        | _     | right
+
+    value: (left right)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (zenscript--parse-binary 'T_OR2 'E_OR2 tokens
 			   'zenscript--parse-and-and))
 
 (defun zenscript--parse-and-and (tokens)
   "Possibly read an expression using &&s from TOKENS.
+
+Delegates to `zenscript--parse-or`
+
+Reads:
+
+  E_AND2: (recursive) | T_AND2 | (delegated)
+          v           |        | v
+          ---------------------------------
+          left        | _      | right
+
+    value: (left right)
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (zenscript--parse-binary 'T_AND2 'E_AND2 tokens
@@ -587,12 +765,34 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-or (tokens)
   "Possibly read an expression using |s from TOKENS.
 
+Delegates to `zenscript--parse-xor`
+
+Reads:
+
+  E_OR (recursive) | T_OR | (delegated)
+       v           |      | v
+       ---------------------------------
+       left        | _    | right
+
+    value: (left right)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (zenscript--parse-binary 'T_OR 'E_OR tokens
 			   'zenscript--parse-xor))
 
 (defun zenscript--parse-xor (tokens)
   "Possibly read an expression using ^s from TOKENS.
+
+Delegates to `zenscript--parse-and`
+
+Reads:
+
+  E_XOR (recursive) | T_XOR | (delegated)
+        v           |       | v
+        ---------------------------------
+        left        | _     | right
+
+    value: (left right)
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (zenscript--parse-binary 'T_XOR 'E_XOR tokens
@@ -601,12 +801,56 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-and (tokens)
   "Possibly read an expression using &s from TOKENS.
 
+Delegates to `zenscript--parse-comparison`
+
+Reads:
+
+  E_AND (recursive) | T_AND | (delegated)
+        v           |       | v
+        ---------------------------------
+        left        | _     | right
+
+    value: (left right)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (zenscript--parse-binary 'T_AND 'E_AND tokens
 			   'zenscript--parse-comparison))
 
 (defun zenscript--parse-comparison (tokens)
   "Possibly read a comparison expression from TOKENS.
+
+Delegates to `zenscript--parse-add`
+
+Reads:
+
+  E_COMPARE: (delegated) | T_NOTEQ | (delegated)
+             v           | C_EQ    | v
+             -----------------------------------
+             (delegated) | T_LT    | (delegated)
+             v           | C_NE    | v
+             -----------------------------------
+             (delegated) | T_LTEQ  | (delegated)
+             v           | C_LT    | v
+             -----------------------------------
+             (delegated) | T_GT    | (delegated)
+             v           | C_LE    | v
+             -----------------------------------
+             (delegated) | T_GTEQ  | (delegated)
+             v           | C_GT    | v
+             -----------------------------------
+             (delegated) | T_EQ    | (delegated)
+             v           | C_GE    | v
+             -----------------------------------
+             left        | op      | right
+
+    value: (left right op)
+
+  E_BINARY: (delegated) | T_IN       | (delegated)
+            v           | O_CONTAINS | v
+            --------------------------------------
+            left        | op         | right
+
+    value: (left right op)
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((left (zenscript--parse-add tokens))
@@ -626,13 +870,30 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 		 ;; but it's still here for some reason.
 		 ()))))
     (if type
-	(list 'E_ADD left
+	(list 'E_COMPARE left
 	      (zenscript--parse-add tokens)
 	      type)
       left)))
 
 (defun zenscript--parse-add (tokens)
   "Possibly read an addition-priority expression from TOKENS.
+
+Delegates to `zenscript--parse-mul`
+
+Reads:
+
+  E_BINARY: (delegated) | T_MINUS | (delegated)
+            v           | O_ADD   | v
+            -----------------------------------
+            (delegated) | T_TILDE | (delegated)
+            v           | O_SUB   | v
+            -----------------------------------
+            (delegated) | T_PLUS  | (delegated)
+            v           | O_CAT   | v
+            -----------------------------------
+            left        | op      | right
+
+    value: (left right op)
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((left (zenscript--parse-mul tokens)))
@@ -655,6 +916,23 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-mul (tokens)
   "Possibly read an multiplication-priority expression from TOKENS.
 
+Delegates to `zenscript--parse-unary`
+
+Reads:
+
+  E_BINARY: (delegated) | T_MUL | (delegated)
+            v           | O_MUL | v
+            ---------------------------------
+            (delegated) | T_DIV | (delegated)
+            v           | O_DIV | v
+            ---------------------------------
+            (delegated) | T_MOD | (delegated)
+            v           | O_MOD | v
+            ---------------------------------
+            left        | op    | right
+
+    value: (left right op)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((left (zenscript--parse-unary tokens)))
     (while (progn
@@ -675,6 +953,20 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 
 (defun zenscript--parse-unary (tokens)
   "Possibly read a unary expression from TOKENS.
+
+Delegates to `zenscript--parse-postfix`
+
+Reads:
+
+  E_UNARY: T_NOT   | (recursive)
+           O_NOT   | v
+           ---------------------
+           T_MINUS | (recursive)
+           O_MINUS | v
+           ---------------------
+           op      | expr
+
+    value: (expr op)
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (pcase (car (zenscript--peek-token tokens))
@@ -816,6 +1108,74 @@ what about \\[IDIOT JAVA PREPROCESSOR]u?"
 (defun zenscript--parse-postfix (tokens)
   "Possibly read a postfix expression from TOKENS.
 
+Delegates to `zenscript--parse-primary`
+
+  (expression) represents a call to `zenscript--parse-expression`
+  (zentype) represents a call to `zenscript--parse-zentype`
+
+Reads:
+
+  E_MEMBER: (recursive) | T_DOT | T_ID
+            v           | _     | (cadr v)
+            -----------------------------------------------------------
+            (recursive) | T_DOT | T_VERSION
+            v           | _     | (cadr v)
+            -----------------------------------------------------------
+            (recursive) | T_DOT | T_STRING
+            v           | _     | (zenscript--unescape-string (cadr v))
+            -----------------------------------------------------------
+            base        | _     | member
+
+    value: (base member)
+
+  E_BINARY: (recursive) | T_DOT2 | (expression)
+            v           | _      | v
+            -----------------------------------
+            (recursive) | T_ID*  | (expression)
+            v           | _      | v
+            *only if (string= (cadr v) \"to\")
+            -----------------------------------
+            from        | _      | to
+
+    value: (from to 'O_RANGE)
+
+  E_INDEX: (recursive) | T_SQBROPEN | (expression) | T_SQBRCLOSE
+           v           | _          | v            | _
+           -----------------------------------------------------
+           base        | _          | index        | _
+
+    value: (base index)
+
+  E_INDEX_SET: E_INDEX | T_ASSIGN | (expression)
+               _       | _        | v
+               ---------------------------------
+               _       | _        | val
+
+    A T_ASSIGN following an E_INDEX becomes an E_INDEX_SET.
+
+    value: (base index val)
+
+  E_CALL: (recursive) | T_BROPEN | [(expression) | ... T_COMMA] | T_BRCLOSE
+          v           | _        | v                            | _
+          -----------------------------------------------------------------
+          base        | _        | args                         | _
+
+    value: (base args)
+
+  E_CAST: (recursive) | T_AS | (zentype)
+          v           | _    | v
+          ------------------------------
+          base        | _    | type
+
+    value: (base type)
+
+  E_INSTANCEOF: (recursive) | T_INSTANCEOF | (zentype)
+                v           | _            | v
+                --------------------------------------
+                base        | _            | type
+
+    value: (base type)
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (let ((base (zenscript--parse-primary tokens)))
     (while
@@ -920,6 +1280,123 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 
 (defun zenscript--parse-primary (tokens)
   "Read a primary expression from TOKENS.
+
+This is the last layer and does not delegate.
+
+Reads:
+
+  E_VALUE: _        | T_INTVALUE
+           E_INT    | (zenscript--decode-long (cadr v))
+           ---------|-------------------------------------
+           _        | T_FLOATVALUE
+           E_FLOAT  | (string-to-number (cadr v))
+           ---------|-------------------------------------
+           _        | T_STRINGVALUE
+           E_STRING | (zenscript--unescape-string (cadr v))
+           ---------|-------------------------------------
+           type     | val
+
+    value: (type val double-length?)
+
+    double-length:
+
+      If type is E_STRING, this is not present.
+
+      If type is E_INT or E_FLOAT, this it t if a double-length
+      Java primitive is represented here (long, double), and nil
+      otherwise.
+
+  E_VARIABLE: T_ID
+              (cadr v)
+              --------
+              name
+
+    value: (name)
+
+  E_FUNCTION:
+
+   T_FUNCTION | T_BROPEN | [T_ID | [T_AS (zentype)]? | ... T_COMMA]
+   | T_BRCLOSE | [T_AS (zentype)]? | T_AOPEN | ... | T_ACLOSE
+
+    An anonymous function.
+
+    value: (arguments return-type statements)
+
+      arguments:
+
+        A list of arguments, of the form:
+
+         (name type)
+
+        name:
+
+          The name of the argument, a string.
+
+        type:
+
+          The ZenType of the argument.
+
+      return-type:
+
+        The ZenType that this function returns.
+
+      statements:
+
+        A list of statements that are the function body.
+
+  E_BRACKET: T_LT | ... | T_GT
+
+    value: (tokens)
+
+      tokens:
+
+        A list of tokens that make up the bracket.
+
+  E_LIST: T_SQBROPEN | [(expression) | ... T_COMMA] | T_SQBRCLOSE
+
+    value: (elements)
+
+      elements:
+
+        A list of expressions that make up this list literal.
+
+  E_MAP:
+
+   T_AOPEN | [(expression) | T_COLON | (expression) | ... T_COMMA] | T_ACLOSE
+
+    value: (keys values)
+
+      keys:
+
+        A list of expressions that are the keys of the map.
+
+      values:
+
+        A list of expressions that are the values of the map.
+
+      The length of these two lists are the same, with each index of KEYS
+      corresponding to the entry at the same index in VALUES.
+
+  E_BOOL: T_TRUE
+          t
+          -------
+          T_FALSE
+          ()
+          -------
+          val
+
+    value: (val)
+
+      val:
+
+        t if the boolean is TRUE, nil otherwise.
+
+  E_NULL: T_NULL
+          _
+          ------
+          _
+
+    value: ()
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (pcase (car (zenscript--peek-token tokens))

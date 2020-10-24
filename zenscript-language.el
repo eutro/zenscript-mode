@@ -127,7 +127,7 @@ Returns a list of type names that can be imported."
 (defun zenscript--skip-ws-and-comments ()
   "Skip across any whitespace characters or comments."
   (skip-syntax-forward " >")
-  (when (char-after)
+  (when (>= (point-max) (+ (point) 2))
     (let ((ppss (save-excursion
 		  (parse-partial-sexp (point)
 				      (+ (point) 2)
@@ -277,8 +277,8 @@ point is put after token, if one was found."
 			 ((looking-at (regexp-quote "%=")) 'T_MODASSIGN)
 			 ((looking-at (regexp-quote "%")) 'T_MOD)
 			 ((looking-at (regexp-quote "|=")) 'T_ORASSIGN)
-			 ((looking-at (regexp-quote "|")) 'T_OR)
 			 ((looking-at (regexp-quote "||")) 'T_OR2)
+			 ((looking-at (regexp-quote "|")) 'T_OR)
 			 ((looking-at (regexp-quote "&=")) 'T_ANDASSIGN)
 			 ((looking-at (regexp-quote "&&")) 'T_AND2)
 			 ((looking-at (regexp-quote "&")) 'T_AND)
@@ -300,11 +300,11 @@ point is put after token, if one was found."
 			 ((looking-at (regexp-quote "!=")) 'T_NOTEQ)
 			 ((looking-at (regexp-quote "!")) 'T_NOT)
 			 ((looking-at (regexp-quote "$")) 'T_DOLLAR)
+			 ((looking-at "-?\\(0\\|[1-9][0-9]*\\)\\.[0-9]+\\([eE][+-]?[0-9]+\\)?[fFdD]?")
+			  'T_FLOATVALUE)
 			 ((or (looking-at "-?\\(0\\|[1-9][0-9]*\\)")
 			      (looking-at "0x[a-fA-F0-9]*"))
 			  'T_INTVALUE)
-			 ((looking-at "-?\\(0\\|[1-9][0-9]*\\)\\.[0-9]+\\([eE][+-]?[0-9]+\\)?[fFdD]?")
-			  'T_FLOATVALUE)
 			 ((or (looking-at "'\\([^'\\\\]\\|\\\\\\(['\"\\\\/bfnrt]\\|u[0-9a-fA-F]\\{4\\}\\)\\)*?'")
 			      (looking-at "\"\\([^\"\\\\]\\|\\\\\\(['\"\\\\/bfnrt]\\|u[0-9a-fA-F]\\{4\\}\\)\\)*\""))
 			  'T_STRINGVALUE))))
@@ -929,7 +929,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
     (if-let (quest (zenscript--optional-token 'T_QUEST tokens))
 	(list 'E_CONDITIONAL
 	      left
-	      (zenscript--parse-or-or-expression tokens)
+	      (zenscript--parse-or-or tokens)
 	      (progn (zenscript--require-token 'T_COLON tokens
 					       ": expected")
 		     (zenscript--parse-conditional tokens)))
@@ -1080,25 +1080,29 @@ Reads:
     value: (left right op)
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
-  (let ((left (zenscript--parse-add tokens))
-	(type (pcase (car (zenscript--peek-token tokens))
-		('T_EQ 'C_EQ)
-		('T_NOTEQ 'C_NE)
-		('T_LT 'C_LT)
-		('T_LTEQ 'C_LE)
-		('T_GT 'C_GT)
-		('T_GTEQ 'C_GE)
-		('T_IN
-		 (setq left
-		       (list 'E_BINARY left
-			     (zenscript--parse-add tokens)
-			     'O_CONTAINS))
-		 ;; doesn't count as a comparison
-		 ;; but it's still here for some reason.
-		 ()))))
+  (let* ((left (zenscript--parse-add tokens))
+	 (type (pcase (car (zenscript--peek-token tokens))
+		 ('T_EQ 'C_EQ)
+		 ('T_NOTEQ 'C_NE)
+		 ('T_LT 'C_LT)
+		 ('T_LTEQ 'C_LE)
+		 ('T_GT 'C_GT)
+		 ('T_GTEQ 'C_GE)
+		 ('T_IN
+		  (setq left
+			(list 'E_BINARY left
+			      (progn
+				(zenscript--get-token tokens)
+				(zenscript--parse-add tokens))
+			      'O_CONTAINS))
+		  ;; doesn't count as a comparison
+		  ;; but it's still here for some reason.
+		  ()))))
     (if type
 	(list 'E_COMPARE left
-	      (zenscript--parse-add tokens)
+	      (progn
+		(zenscript--get-token tokens)
+		(zenscript--parse-add tokens))
 	      type)
       left)))
 
@@ -1198,10 +1202,14 @@ Reads:
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   (pcase (car (zenscript--peek-token tokens))
     ('T_NOT (list 'E_UNARY
-		  (zenscript--parse-unary tokens)
+		  (progn
+		    (zenscript--get-token tokens)
+		    (zenscript--parse-unary tokens))
 		  'O_NOT))
     ('T_MINUS (list 'E_UNARY
-		    (zenscript--parse-unary tokens)
+		    (progn
+		      (zenscript--get-token tokens)
+		      (zenscript--parse-unary tokens))
 		    'O_MINUS))
     (_ (zenscript--parse-postfix tokens))))
 
@@ -1672,7 +1680,8 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
      (let (contents)
        (unless (zenscript--optional-token 'T_SQBRCLOSE tokens)
 	 (let (break)
-	   (while (not break)
+	   (while (and (not break)
+		       (not (zenscript--optional-token 'T_SQBRCLOSE tokens)))
 	     (cons! (zenscript--parse-expression tokens) contents)
 	     (unless (zenscript--optional-token 'T_COMMA tokens)
 	       (zenscript--require-token 'T_SQBRCLOSE tokens
@@ -1684,7 +1693,8 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
      (let (keys values)
        (unless (zenscript--optional-token 'T_ACLOSE tokens)
 	 (let (break)
-	   (while (not break)
+	   (while (and (not break)
+		       (not (zenscript--optional-token 'T_ACLOSE tokens)))
 	     (cons! (zenscript--parse-expression tokens) keys)
 	     (zenscript--require-token 'T_COLON tokens
 				       ": expected")

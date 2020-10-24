@@ -152,7 +152,7 @@ PARSE-STATUS is the status returned from `syntax-pps`."
 	  ((zenscript--continued-expression-p)
 	   (+ zenscript-indent-level
 	      zenscript-expr-indent-offset))
-          (t (prog-first-column)))))
+          (t 0))))
 
 (defun zenscript-indent-line ()
   "Indent the current line as ZenScript."

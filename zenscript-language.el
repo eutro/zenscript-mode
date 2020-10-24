@@ -501,7 +501,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
       (throw 'zenscript-parse-error
 	     "Unexpected end of file."))
     (setq position (cadr token))
-    (setq left (zenscript--read-conditional tokens))
+    (setq left (zenscript--parse-conditional tokens))
     (unless (zenscript--peek-token tokens)
       (throw 'zenscript-parse-error
 	     "Unexpected end of file."))
@@ -540,43 +540,191 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 	  (_ ()))
 	left)))
 
-(defun zenscript--read-conditional (tokens)
+(defun zenscript--parse-conditional (tokens)
   "Possibly read a conditional expression from TOKENS.
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
-  (let (left (zenscript--read-or-or tokens))
+  (let (left (zenscript--parse-or-or tokens))
     (if-let (quest (zenscript--optional-token 'T_QUEST tokens))
 	(list 'E_CONDITIONAL
-	      (zenscript--read-or-or-expression tokens)
+	      (zenscript--parse-or-or-expression tokens)
 	      (progn (zenscript--require-token 'T_COLON tokens
 					       ": expected")
 		     (zenscript--read-conditional tokens))
 	      (caddr quest))
       left)))
 
-(defun zenscript--read-or-or (tokens)
+(defmacro zenscript--parse-binary (token-type expression-type parse-next)
+  "Macro for the binary expressions below.
+
+TOKEN-TYPE is the token representing this operation.
+
+EXPRESSION-TYPE is the type of the expression that may
+be parsed.
+
+PARSE-NEXT is the function to delegate to."
+  `(let (left (~parse-next tokens))
+     (while (zenscript--optional-token '~token-type tokens)
+       (setq left
+	     (list '~expression-type left
+		   (~parse-next tokens))))
+     left))
+
+(defun zenscript--parse-or-or (tokens)
   "Possibly read an expression using ||s from TOKENS.
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
-  (let (left (zenscript--read-and-and tokens))
-    (while (zenscript--optional-token 'T_OR2 tokens)
-      (setq left
-	    (list 'E_OR2
-		  left
-		  (zenscript--read-and-and tokens))))
-    left))
+  (zenscript--parse-binary T_OR2 E_OR2
+			   zenscript--parse-and-and))
 
-(defun zenscript--read-and-and (tokens)
+(defun zenscript--parse-and-and (tokens)
   "Possibly read an expression using &&s from TOKENS.
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
-  (let (left (zenscript--read-or tokens))
-    (while (zenscript--optional-token 'T_AND2 tokens)
-      (setq left
-	    (list 'E_AND2
-		  left
-		  (zenscript--read-or tokens))))
+  (zenscript--parse-binary T_AND2 E_AND2
+			   zenscript--parse-or))
+
+(defun zenscript--parse-or (tokens)
+  "Possibly read an expression using |s from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (zenscript--parse-binary T_OR E_OR
+			   zenscript--parse-or))
+
+(defun zenscript--parse-xor (tokens)
+  "Possibly read an expression using ^s from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (zenscript--parse-binary T_XOR E_XOR
+			   zenscript--parse-and))
+
+(defun zenscript--parse-and (tokens)
+  "Possibly read an expression using &s from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (zenscript--parse-binary T_AND E_AND
+			   zenscript--parse-comparison))
+
+(defun zenscript--parse-comparison (tokens)
+  "Possibly read a comparison expression from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (let ((left (zenscript--parse-add tokens))
+	(type (pcase (car (zenscript--peek-token tokens))
+		('T_EQ 'C_EQ)
+		('T_NOTEQ 'C_NE)
+		('T_LT 'C_LT)
+		('T_LTEQ 'C_LE)
+		('T_GT 'C_GT)
+		('T_GTEQ 'C_GE)
+		('T_IN
+		 (setq left
+		       (list 'E_BINARY left
+			     (zenscript--parse-add tokens)
+			     'O_CONTAINS))
+		 ;; doesn't count as a comparison
+		 ;; but it's still here for some reason.
+		 ()))))
+    (if type
+	(list 'E_ADD left
+	      (zenscript--parse-add tokens)
+	      type)
+      left)))
+
+(defun zenscript--parse-add (tokens)
+  "Possibly read an addition-priority expression from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (let ((left (zenscript--parse-mul)))
+    (while (progn
+	     (cond ((zenscript--optional-token 'T_PLUS)
+		    (setq left (list 'E_BINARY left
+				     (zenscript--parse-mul tokens)
+				     'O_ADD)))
+		   ((zenscript--optional-token 'T_MINUS)
+		    (setq left (list 'E_BINARY left
+				     (zenscript--parse-mul tokens)
+				     'O_SUB)))
+		   ((zenscript--optional-token 'T_TILDE)
+		    (setq left (list 'E_BINARY left
+				     (zenscript--parse-mul tokens)
+				     'O_CAT)))
+		   (t ()))))
     left))
+
+(defun zenscript--parse-mul (tokens)
+  "Possibly read an multiplication-priority expression from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (let ((left (zenscript--parse-unary)))
+    (while (progn
+	     (cond ((zenscript--optional-token 'T_MUL)
+		    (setq left (list 'E_BINARY left
+				     (zenscript--parse-unary tokens)
+				     'O_MUL)))
+		   ((zenscript--optional-token 'T_DIV)
+		    (setq left (list 'E_BINARY left
+				     (zenscript--parse-unary tokens)
+				     'O_DIV)))
+		   ((zenscript--optional-token 'T_MOD)
+		    (setq left (list 'E_BINARY left
+				     (zenscript--parse-unary tokens)
+				     'O_MOD)))
+		   (t ()))))
+    left))
+
+(defun zenscript--parse-unary (tokens)
+  "Possibly read a unary expression from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (pcase (car (zenscript--peek-token tokens))
+    ('T_NOT (list 'E_UNARY
+		  (zenscript--parse-unary tokens)
+		  'O_NOT))
+    ('T_MINUS (list 'E_UNARY
+		    (zenscript--parse-unary tokens)
+		    'O_MINUS))
+    (_ (zenscript--parse-postfix tokens))))
+
+(defun zenscript--parse-postfix (tokens)
+  "Possibly read a postfix expression from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  (let ((base (zenscript--parse-primary tokens)))
+    (while
+	(and (zenscript--peek-token tokens)
+	     (cond
+	      ((zenscript--optional-token 'T_DOT tokens)
+	       (let ((member (or (zenscript--optional-token 'T_ID tokens)
+				 ;; what even is this
+				 (zenscript--optional-token 'T_VERSION tokens))))
+		 (setq base
+		       (list 'E_MEMBER base
+			     (if member
+				 (cadr member)
+			       (substring (cadr
+					   ;; why
+					   (or (zenscript--optional-token 'T_STRING)
+					       (throw 'zenscript-parse-error
+						      "Invalid expression.")))
+					  1 -1))))
+		 ()))
+	      ((or (zenscript--optional-token 'T_DOT2)
+		   (and (string-equal
+			 "to"
+			 (cadr (zenscript--optional-token 'T_ID)))))
+	       (setq base
+		     (list 'E_BINARY base
+			   (zenscript--parse-expression tokens)
+			   'O_RANGE))
+	       ()))))
+    base))
+
+(defun zenscript--parse-primary (tokens)
+  "Read a primary expression from TOKENS.
+
+TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+  )
 
 (defun zenscript--parse-global (tokens)
   "Parse the next global definition from TOKENS.

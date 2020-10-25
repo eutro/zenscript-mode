@@ -338,8 +338,7 @@ point is put after token, if one was found."
 		    (prog1 (car token-list)
 		      (cdr! token-list))
 		  (throw 'zenscript-parse-error
-			 (cadr args))))
-      ('HAS-NEXT (if token-list t)))))
+			 (cadr args)))))))
 
 (defun zenscript--require-token (type tokens message)
   "Require that the next token in TOKENS is of type TYPE.
@@ -372,7 +371,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
   "Return t if TOKENS has any more tokens remaining.
 
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
-  (funcall tokens 'HAS-NEXT))
+  (when (zenscript--peek-token tokens) t))
 
 (defun zenscript--parse-tokens (tokenlist)
   "Parse a list of ZenScript tokens.
@@ -458,11 +457,21 @@ Return a list of the form:
 
  (name arguments type statements)
 
+name:
+
+  The token that is the name of the function.
+
 arguments:
 
-  A list of elements of the form:
+  A list of arguments as returned by `zenscript--parse-function-arguments`.
 
-    (name type)
+type:
+
+  The ZenType that the function returns.
+
+statements:
+
+  A list of statements, which are as returned by `zenscript--parse-statement`.
 
 function (argname [as type], argname [as type], ...) [as type] {
 ...contents... }"
@@ -485,20 +494,30 @@ function (argname [as type], argname [as type], ...) [as type] {
 	  (reverse statements))))
 
 (defun zenscript--parse-function-arguments (tokens)
-  "Parse a list of function arguments from TOKENS."
+  "Parse a list of function arguments from TOKENS.
+
+A list of arguments of the form:
+
+ (name type)
+
+name:
+
+  The token that is the identifier of this binding.
+
+type:
+
+  The ZenType of this binding."
   (let (arguments)
     (zenscript--require-token 'T_BROPEN tokens
 			      "( expected")
     (unless (zenscript--optional-token 'T_BRCLOSE tokens)
       (let (break)
 	(while (not break)
-	  (cons! (let ((id (zenscript--require-token 'T_ID tokens
-						     "identifier expected")))
-		   (list (cadr id)
-			 (if (zenscript--optional-token 'T_AS tokens)
-			     (zenscript--parse-zentype tokens)
-			   '(C_RAW "any"))
-			 (caddr id)))
+	  (cons! (list (zenscript--require-token 'T_ID tokens
+						 "identifier expected")
+		       (if (zenscript--optional-token 'T_AS tokens)
+			   (zenscript--parse-zentype tokens)
+			 '(C_RAW "any")))
 		 arguments)
 	  (unless (zenscript--optional-token 'T_COMMA tokens)
 	    (zenscript--require-token 'T_BRCLOSE tokens
@@ -507,7 +526,30 @@ function (argname [as type], argname [as type], ...) [as type] {
     (reverse arguments)))
 
 (defun zenscript--parse-zenclass (tokens)
-  "Parse the next static class definition from TOKENS."
+  "Parse the next class definition from TOKENS.
+
+A list of the form:
+
+ (name fields constructors methods)
+
+name:
+
+  The token that is the name of this class.
+
+fields:
+
+  A list of fields, which are as returned by
+  `zenscript--parse-zenclass-field`.
+
+constructors:
+
+  A list of constructors, which are as returned by
+  `zenscript--parse-zenclass-constructor`.
+
+methods:
+
+  A list of methods, which are as returned by
+  `zenscript--parse-zenclass-method`."
   (zenscript--require-token 'T_ZEN_CLASS tokens
 			    "zenClass expected")
   (let ((id (zenscript--require-token 'T_ID tokens
@@ -536,7 +578,7 @@ function (argname [as type], argname [as type], ...) [as type] {
 		methods))))
     (zenscript--require-token 'T_ACLOSE tokens
 			      "} expected")
-    (list (cadr id)
+    (list id
 	  (reverse fields)
 	  (reverse constructors)
 	  (reverse methods)
@@ -544,6 +586,26 @@ function (argname [as type], argname [as type], ...) [as type] {
 
 (defun zenscript--parse-zenclass-field (tokens static)
   "Parse a field definition of a ZenClass from TOKENS.
+
+A list of the form:
+
+ (name type init static)
+
+name:
+
+  The token that is the name of this field.
+
+type:
+
+  The ZenType of the field.
+
+init:
+
+  The expression by which this field is initialized.
+
+static:
+
+  t if the field is static, nil otherwise.
 
 STATIC should be true if the class field is static."
   (let ((id (zenscript--require-token 'T_ID tokens
@@ -555,10 +617,22 @@ STATIC should be true if the class field is static."
 		(zenscript--parse-expression tokens))))
     (zenscript--require-token 'T_SEMICOLON tokens
 			      "; expected")
-    (list (cadr id) type init static (caddr id))))
+    (list id type init static)))
 
 (defun zenscript--parse-zenclass-constructor (tokens)
-  "Parse a constructor definition of a ZenClass from TOKENS."
+  "Parse a constructor definition of a ZenClass from TOKENS.
+
+A list of the form:
+
+ (arguments statements)
+
+arguments:
+
+  The list of arguments, as returned by `zenscript--parse-function-arguments`.
+
+statements:
+
+  A list of statements, which are as returned by `zenscript--parse-statement`."
   (let ((arguments (zenscript--parse-function-arguments tokens))
 	statements)
     (zenscript--require-token 'T_AOPEN tokens
@@ -568,7 +642,27 @@ STATIC should be true if the class field is static."
     (list arguments (reverse statements))))
 
 (defun zenscript--parse-zenclass-method (tokens)
-  "Parse a method definition of a ZenClass from TOKENS."
+  "Parse a method definition of a ZenClass from TOKENS.
+
+A list of the form:
+
+ (name arguments type statements)
+
+name:
+
+  The token that is the name of this method.
+
+arguments:
+
+  The list of arguments, as returned by `zenscript--parse-function-arguments`.
+
+type:
+
+  The ZenType that the method returns.
+
+statements:
+
+  A list of statements, which are as returned by `zenscript--parse-statement`."
   (let ((id (zenscript--require-token 'T_ID tokens
 				      "identifier expected"))
 	(arguments (zenscript--parse-function-arguments tokens))
@@ -580,10 +674,124 @@ STATIC should be true if the class field is static."
 			      "{ expected")
     (while (not (zenscript--optional-token 'T_ACLOSE tokens))
       (cons! (zenscript--parse-statement tokens) statements))
-    (list (cadr id) arguments type (reverse statements))))
+    (list id arguments type (reverse statements))))
 
 (defun zenscript--parse-statement (tokens)
-  "Parse the next statement from TOKENS."
+  "Parse the next statement from TOKENS.
+
+A list of the form:
+
+ (type . value)
+
+type:
+
+  The type of the statement, see below for possible values.
+
+value:
+
+  The value of the statement, which varies by type.  See below.
+
+The following types are possible:
+
+  S_BLOCK:
+
+    value: (statements)
+
+    statements:
+
+      A list of statements, which are as returned by
+      `zenscript--parse-statement`.
+
+  S_RETURN:
+
+    value: (expression)
+
+    expression:
+
+      An expression that is the value of this return
+      statement.  See `zenscript--parse-expression`.
+
+  S_VAR:
+
+    value: (name type initializer final)
+
+    name:
+
+      The token that is the name of this variable.
+
+    type:
+
+      The explicit ZenType of this variable.
+
+    initializer:
+
+      The expression that initializes this variable.
+
+    final:
+
+      t if this variable is final, nil otherwise.
+
+  S_IF:
+
+    value: (predicate then else)
+
+    predicate:
+
+      The expression that is evaluated to determine
+      whether to evaluate THEN or ELSE.
+
+    then:
+
+      The statement to evaluate if predicate is true.
+
+    else:
+
+      The statement to evaluate if predicate is false.
+
+  S_FOR:
+
+    value: (names expression statement)
+
+    names:
+
+      A list of tokens that are bound variables.
+
+    expression:
+
+      The expression of what is being iterated over.
+
+    statement:
+
+      The expression to run in this for loop.
+
+  S_WHILE:
+
+    value: (predicate statement)
+
+    predicate:
+
+      The expression to test if the loop should be run.
+
+    statement:
+
+      The statement that is run each iteration.
+
+  S_BREAK:
+
+    value: ()
+
+  S_CONTINUE:
+
+    value: ()
+
+  S_EXPRESSION:
+
+    value: (expression)
+
+    expression:
+
+      The expression to evaluate as a statement.
+      See `zenscript--parse-statement`."
   (let ((next (zenscript--peek-token tokens)))
     (pcase (car next)
       ('T_AOPEN
@@ -606,8 +814,6 @@ STATIC should be true if the class field is static."
        (zenscript--get-token tokens)
        (let* ((id (zenscript--require-token 'T_ID tokens
 					    "identifier expected"))
-	      (name (cadr id))
-	      (pos (caddr id))
 	      initializer
 	      type)
 	 (when (zenscript--optional-token 'T_AS tokens)
@@ -618,8 +824,7 @@ STATIC should be true if the class field is static."
 				   "; expected")
 	 (list 'S_VAR name type initializer
 	       (eq (car next)
-		   'T_VAL)
-	       pos)))
+		   'T_VAL))))
       ('T_IF
        (zenscript--get-token tokens)
        (list 'S_IF
@@ -1718,19 +1923,34 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-global (tokens)
   "Parse the next global definition from TOKENS.
 
+Return a list of the form:
+
+ (name type value)
+
+name:
+
+  The token that is the name of this binding.
+
+type:
+
+  The ZenType of this binding.
+
+value:
+
+  The expression that is the initializer of this binding.
+
 TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
-  (let ((pos (caddr (zenscript--get-token tokens)))
-	(name (cadr (zenscript--require-token 'T_ID tokens
-					      "Global value requires a name!")))
+  (let ((name (zenscript--require-token 'T_ID tokens
+					"Global value requires a name!"))
 	(type (if (zenscript--optional-token 'T_AS tokens)
 		  (zenscript--parse-zentype tokens)
-		  '(RAW "any")))
+		  '(C_RAW "any")))
 	(value (progn (zenscript--require-token 'T_ASSIGN tokens
 						"Global values have to be initialized!")
 		      (zenscript--parse-expression tokens))))
     (zenscript--require-token 'T_SEMICOLON tokens
 			      "; expected")
-    (list 'S_GLOBAL name type value)))
+    (list name type value)))
 
 (provide 'zenscript-language)
 ;;; zenscript-language.el ends here

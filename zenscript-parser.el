@@ -335,19 +335,22 @@ imports:
 		     pos
 		     rename)
 	       imports)))
-    (while (zenscript--has-next-token tokens)
-      (pcase (car (zenscript--peek-token tokens))
-	((or 'T_GLOBAL 'T_STATIC)
-	 (cons! (zenscript--parse-global tokens)
-		statements))
-	('T_FUNCTION
-	 (cons! (zenscript--parse-function tokens)
-		functions))
-	('T_ZEN_CLASS
-	 (cons! (zenscript--parse-zenclass tokens)
-		zenclasses))
-	(_ (cons! (zenscript--parse-statement tokens)
-		  statements))))
+    (let ((caught
+	   (catch 'zenscript-parse-error
+	     (while (zenscript--has-next-token tokens)
+	       (pcase (car (zenscript--peek-token tokens))
+		 ((or 'T_GLOBAL 'T_STATIC)
+		  (cons! (zenscript--parse-global tokens)
+			 statements))
+		 ('T_FUNCTION
+		  (cons! (zenscript--parse-function tokens)
+			 functions))
+		 ('T_ZEN_CLASS
+		  (cons! (zenscript--parse-zenclass tokens)
+			 zenclasses))
+		 (_ (cons! (zenscript--parse-statement tokens)
+			   statements)))))))
+      (when caught (message caught)))
     (list (reverse imports)
 	  (reverse functions)
 	  (reverse zenclasses)
@@ -725,7 +728,7 @@ The following types are possible:
 	   (setq initializer (zenscript--parse-expression tokens)))
 	 (zenscript--require-token 'T_SEMICOLON tokens
 				   "; expected")
-	 (list 'S_VAR name type initializer
+	 (list 'S_VAR id type initializer
 	       (eq (car next)
 		   'T_VAL))))
       ('T_IF
@@ -763,12 +766,12 @@ The following types are possible:
 	     (zenscript--parse-statement tokens)))
       ('T_BREAK
        (zenscript--get-token tokens)
-       (zenscript--require-token 'T_SEMICOLON
+       (zenscript--require-token 'T_SEMICOLON tokens
 				 "; expected")
        (list 'S_BREAK))
       ('T_CONTINUE
        (zenscript--get-token tokens)
-       (zenscript--require-token 'T_SEMICOLON
+       (zenscript--require-token 'T_SEMICOLON tokens
 				 "; expected")
        (list 'S_CONTINUE))
       (_

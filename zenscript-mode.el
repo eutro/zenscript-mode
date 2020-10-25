@@ -31,6 +31,7 @@
 (require 'zenscript-highlighting)
 (require 'zenscript-completion)
 (require 'zenscript-indentation)
+(require 'zenscript-language)
 
 (defgroup zenscript nil
   "Major mode for editing ZenScript code."
@@ -69,7 +70,8 @@
   (zenscript--init-common)
   (zenscript--init-highlighting)
   (zenscript--init-indents)
-  (zenscript--init-completion))
+  (zenscript--init-completion)
+  (zenscript--init-language))
 
 (add-to-list 'auto-mode-alist '("\\.zs\\'" . zenscript-mode))
 

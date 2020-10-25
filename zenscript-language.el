@@ -63,10 +63,15 @@ name:
 type:
 
   The ZenType of the value, its `zsPath` from dumpzs, or nil if unknown."
-  (mapcar (lambda (el)
-	    (list (car el)
-		  (zenscript--symbol-to-type (cadr el))))
-	  (cdr (assoc "Globals" (cdr (zenscript-get-dumpzs))))))
+  (append
+   (mapcar (lambda (el)
+	     (list (car el)
+		   (zenscript--symbol-to-type (cadr el))))
+	   (cdr (assoc "Globals" (cdr (zenscript-get-dumpzs)))))
+   (mapcar (lambda (import)
+	     (or (caddr import)
+		 (last (car import))))
+	   (cadr zenscript--parse-buffer-cache))))
 
 (defun zenscript--get-importables-1 (nodes)
   "Get a list of types or static members below NODES in the tree."
@@ -120,6 +125,50 @@ extra-info:
 
 Returns a list of type names that can be imported."
   (zenscript--get-importables-1 (cdr (assoc "Root (Symbol Package)" (cdr (zenscript-get-dumpzs))))))
+
+(defvar zenscript--parse-buffer-cache ()
+  "This is the cache maintained by `zenscript-parse-buffer`.")
+
+(defcustom zenscript-buffer-parse-timer-function 'zenscript-default-buffer-parse-timer-function
+  "The function by which it is determined how often the buffer should be parsed.
+
+Must take a buffer and return a number of seconds in which the buffer
+should be parsed next.
+
+See `zenscript-parse-buffer`.")
+
+(defun zenscript-default-buffer-parse-timer-function (buffer)
+  "The default value of `zenscript-parse-buffer-timer-function`.
+
+Constantly returns 5.
+
+BUFFER is ignored."
+  5)
+
+(defun zenscript-parse-buffer (buffer)
+  "Parse the buffer BUFFER, refreshing the cache.
+
+This is run periodically while in `zenscript-mode`."
+  (when (eq (with-current-buffer buffer
+	      major-mode)
+	    'zenscript-mode)
+    (run-at-time (funcall zenscript-buffer-parse-timer-function
+			  buffer)
+		 ()
+		 (lambda ()
+		   (zenscript-parse-buffer buffer)))
+    (let ((hash (buffer-hash buffer)))
+      (when (not (string= hash (car zenscript--parse-buffer-cache)))
+	(setq zenscript--parse-buffer-cache
+	      (cons hash
+		    (zenscript--parse-tokens
+		     (with-current-buffer buffer
+		       (save-excursion (zenscript--tokenize-buffer))))))))))
+
+(defun zenscript--init-language ()
+  "Initialize the language module."
+  (make-local-variable 'zenscript--parse-buffer-cache)
+  (zenscript-parse-buffer (current-buffer)))
 
 (provide 'zenscript-language)
 ;;; zenscript-language.el ends here

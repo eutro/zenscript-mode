@@ -161,7 +161,7 @@ last item in second form, etc."
     (let ((html
 	   (with-temp-buffer
 	     (insert-file-contents loc)
-	     (libxml-parse-html-region (point-min) (point-max) () t))))
+	     (libxml-parse-html-region (point-min) (point-max)))))
       (->> html
 	   (seq-find (zenscript--tag-p 'body))
 	   (seq-find (zenscript--tag-p 'div))

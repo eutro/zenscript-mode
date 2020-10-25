@@ -147,30 +147,66 @@ Constantly returns 2.
 BUFFER is ignored."
   2)
 
+(defvar zenscript--last-warning ()
+  "The last warning by `zenscript-parse-buffer`.")
+
 (defun zenscript-parse-buffer (buffer)
   "Parse the buffer BUFFER, refreshing the cache.
 
 This is run periodically while in `zenscript-mode`."
-  (when (eq (with-current-buffer buffer
-	      major-mode)
-	    'zenscript-mode)
-    (run-with-idle-timer
-     (funcall zenscript-buffer-parse-timer-function
-	      buffer)
-     ()
-     (lambda ()
-       (zenscript-parse-buffer buffer)))
-    (let ((hash (buffer-hash buffer)))
-      (when (not (string= hash (car zenscript--parse-buffer-cache)))
-	(setq zenscript--parse-buffer-cache
-	      (cons hash
-		    (zenscript--parse-tokens
-		     (with-current-buffer buffer
-		       (save-excursion (zenscript--tokenize-buffer))))))))))
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (when (eq major-mode 'zenscript-mode)
+	(run-with-idle-timer
+	 (funcall zenscript-buffer-parse-timer-function
+		  buffer)
+	 ()
+	 (lambda ()
+	   (zenscript-parse-buffer buffer)))
+	(let ((hash (buffer-hash)))
+	  (when (not (string= hash (car zenscript--parse-buffer-cache)))
+	    (when zenscript--last-warning
+	      (delete-overlay zenscript--last-warning)
+	      (setq zenscript--last-warning ()))
+	    (setq zenscript--parse-buffer-cache
+		  (cons hash
+			(let ((caught
+			       (catch 'zenscript-parse-error
+				 (zenscript--parse-tokens
+				  (save-excursion
+				    (let ((caught
+					   (catch 'zenscript-unrecognized-token
+					     (zenscript--tokenize-buffer))))
+				      (if (listp caught)
+					  caught
+					(throw 'zenscript-parse-error
+					       (list 'PARSE_ERROR
+						     ()
+						     (list 'T_UNKNOWN (char-to-string (char-after))
+							   (point))
+						     "Unrecognized token.")))))))))
+			  (if (eq 'PARSE_ERROR
+				  (car caught))
+			      (prog1 (cadr caught)
+				(let* ((token (caddr caught))
+				       (start (if token
+						  (caddr token)
+						(1- (point-max))))
+				       (end (if token
+						(+ start
+						   (length (cadr token)))
+					      (point-max)))
+				       (overlay (make-overlay start end
+							      () t)))
+				  (overlay-put overlay 'face 'font-lock-warning-face)
+				  (overlay-put overlay 'help-echo (cadddr caught))
+				  (setq zenscript--last-warning overlay)))
+			    caught))))))))))
 
 (defun zenscript--init-language ()
   "Initialize the language module."
   (make-local-variable 'zenscript--parse-buffer-cache)
+  (make-local-variable 'zenscript--last-warning)
   (zenscript-parse-buffer (current-buffer)))
 
 (provide 'zenscript-language)

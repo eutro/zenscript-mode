@@ -27,7 +27,6 @@
 ;;; Code:
 
 (require 'json)
-(require 'xml)
 
 (defconst zenscript-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -158,15 +157,18 @@ last item in second form, etc."
 
 (defun zenscript--parse-dumpzs-html (loc)
   "Parse the contents of /zs dumpzs html at LOC."
-  (let ((html
-	 (with-temp-buffer
-	   (insert-file-contents loc)
-	   (libxml-parse-html-region (point-min) (point-max) () t))))
-    (->> html
-	 (seq-find (zenscript--tag-p 'body))
-	 (seq-find (zenscript--tag-p 'div))
-	 (seq-find (zenscript--tag-p 'ul))
-	 (zenscript--rewrite-html))))
+  (if (fboundp 'libxml-parse-html-region)
+    (let ((html
+	   (with-temp-buffer
+	     (insert-file-contents loc)
+	     (libxml-parse-html-region (point-min) (point-max) () t))))
+      (->> html
+	   (seq-find (zenscript--tag-p 'body))
+	   (seq-find (zenscript--tag-p 'div))
+	   (seq-find (zenscript--tag-p 'ul))
+	   (zenscript--rewrite-html)))
+    (message "libxml not available, didn't parse /zs dumpzs html")
+    ()))
 
 (defun zenscript-calculate-dumpzs-cache (location)
   "Load the data from /zs dumpzs.

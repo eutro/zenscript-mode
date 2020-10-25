@@ -132,18 +132,20 @@ Returns a list of type names that can be imported."
 (defcustom zenscript-buffer-parse-timer-function 'zenscript-default-buffer-parse-timer-function
   "The function by which it is determined how often the buffer should be parsed.
 
-Must take a buffer and return a number of seconds in which the buffer
-should be parsed next.
+Must take a buffer and return a number of seconds.
+
+This is the number of seconds that zenscript-mode will wait
+after Emacs is idle before parsing the buffer.
 
 See `zenscript-parse-buffer`.")
 
 (defun zenscript-default-buffer-parse-timer-function (buffer)
   "The default value of `zenscript-parse-buffer-timer-function`.
 
-Constantly returns 5.
+Constantly returns 2.
 
 BUFFER is ignored."
-  5)
+  2)
 
 (defun zenscript-parse-buffer (buffer)
   "Parse the buffer BUFFER, refreshing the cache.
@@ -152,11 +154,12 @@ This is run periodically while in `zenscript-mode`."
   (when (eq (with-current-buffer buffer
 	      major-mode)
 	    'zenscript-mode)
-    (run-at-time (funcall zenscript-buffer-parse-timer-function
-			  buffer)
-		 ()
-		 (lambda ()
-		   (zenscript-parse-buffer buffer)))
+    (run-with-idle-timer
+     (funcall zenscript-buffer-parse-timer-function
+	      buffer)
+     ()
+     (lambda ()
+       (zenscript-parse-buffer buffer)))
     (let ((hash (buffer-hash buffer)))
       (when (not (string= hash (car zenscript--parse-buffer-cache)))
 	(setq zenscript--parse-buffer-cache

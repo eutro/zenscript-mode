@@ -49,6 +49,14 @@
   (zenscript--looking-at-member-access-p)
   (all-completions prefix (zenscript--get-members ())))
 
+(defun zenscript--looking-at-backwards-p (regex)
+  "Return non-nil if searching REGEX backwards ends at point."
+  (= (point)
+     (save-excursion
+       (or (and (re-search-backward regex (point-min) t)
+		(match-end 0))
+	   0))))
+
 (defun zenscript--looking-at-member-access-p ()
   "Return non-nil if looking at member access."
   (zenscript--looking-at-backwards-p "\\.\\(\\w*\\)"))

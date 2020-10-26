@@ -40,6 +40,290 @@
 			    () () ppss 'syntax-table)
 	(zenscript--skip-ws-and-comments)))))
 
+(defun zenscript--map* (kwargs &rest kvs)
+  "Make a hashmap.
+
+KWARGS are additional arguments to `make-hash-table`.
+
+Each odd element of KVS is a key corresponding to the value
+immediately after it."
+  (let ((table (apply 'make-hash-table
+		      :size (/ (length kvs) 2)
+		      kwargs)))
+    (while kvs
+      (puthash (car kvs) (cadr kvs) table)
+      (setq kvs (cddr kvs)))
+    table))
+
+(define-hash-table-test 'zenscript--string-test-single
+      (lambda (_a _b) t)
+      (lambda (k)
+	(pcase k
+	  (?\\ 0)
+	  (?\' 1)
+	  (_ 2))))
+
+(define-hash-table-test 'zenscript--string-test-double
+      (lambda (_a _b) t)
+      (lambda (k)
+	(pcase k
+	  (?\\ 0)
+	  (?\" 1)
+	  (_ 2))))
+
+(defconst zenscript--token-dfa-states
+  (vector
+   (zenscript--map*
+    ()
+    ?a 1 ?b 1 ?c 1 ?d 1 ?e 1 ?f 1 ?g 1 ?h 1 ?i 1 ?j 1 ?k 1 ?l 1 ?m 1
+    ?n 1 ?o 1 ?p 1 ?q 1 ?r 1 ?s 1 ?t 1 ?u 1 ?v 1 ?w 1 ?x 1 ?y 1 ?z 1
+    ?A 1 ?B 1 ?C 1 ?D 1 ?E 1 ?F 1 ?G 1 ?H 1 ?I 1 ?J 1 ?K 1 ?L 1 ?M 1
+    ?N 1 ?O 1 ?P 1 ?Q 1 ?R 1 ?S 1 ?T 1 ?U 1 ?V 1 ?W 1 ?X 1 ?Y 1 ?Z 1
+    ?_ 1
+
+    ?\{ 2 ?\} 3 ?\[ 4 ?\] 5
+
+    ?. 6 ?, 8
+
+    ?+ 9 ?- 11 ?* 13 ?/ 15 ?% 17
+
+    ?| 19 ?& 22
+
+    ?^ 25
+
+    ?? 27 ?: 28 ?\( 29 ?\) 30
+
+    ?~ 31
+
+    ?\; 33
+
+    ?< 34 ?> 36 ?= 38 ?! 40
+
+    ?$ 42
+
+    ?\' 43 ?\" 49
+
+    ?0 56
+    ?1 58 ?2 58 ?3 58 ?4 58 ?5 58 ?6 58 ?7 58 ?8 58 ?9 58)
+   (zenscript--map* ; identifiers
+    ()
+    ?a 1 ?b 1 ?c 1 ?d 1 ?e 1 ?f 1 ?g 1 ?h 1 ?i 1 ?j 1 ?k 1 ?l 1 ?m 1
+    ?n 1 ?o 1 ?p 1 ?q 1 ?r 1 ?s 1 ?t 1 ?u 1 ?v 1 ?w 1 ?x 1 ?y 1 ?z 1
+    ?A 1 ?B 1 ?C 1 ?D 1 ?E 1 ?F 1 ?G 1 ?H 1 ?I 1 ?J 1 ?K 1 ?L 1 ?M 1
+    ?N 1 ?O 1 ?P 1 ?Q 1 ?R 1 ?S 1 ?T 1 ?U 1 ?V 1 ?W 1 ?X 1 ?Y 1 ?Z 1
+    ?_ 1 ?0 1 ?1 1 ?2 1 ?3 1 ?4 1 ?5 1 ?6 1 ?7 1 ?8 1 ?9 1)
+   (zenscript--map* ()) ; {
+   (zenscript--map* ()) ; }
+   (zenscript--map* ()) ; [
+   (zenscript--map* ()) ; ]
+   (zenscript--map* () ?. 7) ; .
+   (zenscript--map* ()) ; ..
+   (zenscript--map* ()) ; ,
+   (zenscript--map* () ?= 10) ; +
+   (zenscript--map* ()) ; +=
+   (zenscript--map*
+    ()
+    ?= 12
+    ?0 56
+    ?1 58 ?2 58 ?3 58 ?4 58 ?5 58 ?6 58 ?7 58 ?8 58 ?9 58) ; -
+   (zenscript--map* ()) ; -=
+   (zenscript--map* () ?= 14) ; *
+   (zenscript--map* ()) ; *=
+   (zenscript--map* () ?= 16) ; /
+   (zenscript--map* ()); /=
+   (zenscript--map* () ?= 18) ; %
+   (zenscript--map* ()) ; %=
+   (zenscript--map* () ?= 20 ?| 21) ; |
+   (zenscript--map* ()) ; |=
+   (zenscript--map* ()) ; ||
+   (zenscript--map* () ?= 23 ?& 24) ; &
+   (zenscript--map* ()) ; &=
+   (zenscript--map* ()) ; &&
+   (zenscript--map* () ?= 26) ; ^
+   (zenscript--map* ()) ; ^=
+   (zenscript--map* ()) ; ?
+   (zenscript--map* ()) ; :
+   (zenscript--map* ()) ; (
+   (zenscript--map* ()) ; )
+   (zenscript--map* () ?= 32) ; ~
+   (zenscript--map* ()) ; ~=
+   (zenscript--map* ()) ; ;
+   (zenscript--map* () ?= 35) ; <
+   (zenscript--map* ()) ; <=
+   (zenscript--map* () ?= 37) ; >
+   (zenscript--map* ()) ; >=
+   (zenscript--map* () ?= 39) ; =
+   (zenscript--map* ()) ; ==
+   (zenscript--map* () ?= 41) ; !
+   (zenscript--map* ()) ; !=
+   (zenscript--map* ()) ; $
+   ;; ' strings
+   (zenscript--map*
+    '(:test zenscript--string-test-single)
+    ?\\ 44
+    ?' 55
+    ?. 43)
+   (zenscript--map*
+    ()
+    ?u 45
+    ?\' 43 ?\" 43 ?\\ 43 ?/ 43 ?b 43 ?f 43 ?n 43 ?r 43 ?t 43)
+   (zenscript--map*
+    ()
+    ?0 46 ?1 46 ?2 46 ?3 46 ?4 46 ?5 46 ?6 46 ?7 46 ?8 46 ?9 46
+    ?a 46 ?b 46 ?c 46 ?d 46 ?e 46 ?f 46
+    ?A 46 ?B 46 ?C 46 ?D 46 ?E 46 ?F 46)
+   (zenscript--map*
+    ()
+    ?0 47 ?1 47 ?2 47 ?3 47 ?4 47 ?5 47 ?6 47 ?7 47 ?8 47 ?9 47
+    ?a 47 ?b 47 ?c 47 ?d 47 ?e 47 ?f 47
+    ?A 47 ?B 47 ?C 47 ?D 47 ?E 47 ?F 47)
+   (zenscript--map*
+    ()
+    ?0 48 ?1 48 ?2 48 ?3 48 ?4 48 ?5 48 ?6 48 ?7 48 ?8 48 ?9 48
+    ?a 48 ?b 48 ?c 48 ?d 48 ?e 48 ?f 48
+    ?A 48 ?B 48 ?C 48 ?D 48 ?E 48 ?F 48)
+   (zenscript--map*
+    ()
+    ?0 43 ?1 43 ?2 43 ?3 43 ?4 43 ?5 43 ?6 43 ?7 43 ?8 43 ?9 43
+    ?a 43 ?b 43 ?c 43 ?d 43 ?e 43 ?f 43
+    ?A 43 ?B 43 ?C 43 ?D 43 ?E 43 ?F 43)
+   ;; " strings
+   (zenscript--map*
+    '(:test zenscript--string-test-double)
+    ?\\ 50
+    ?\" 55
+    ?. 49)
+   (zenscript--map*
+    ()
+    ?u 51
+    ?\' 49 ?\" 49 ?\\ 49 ?/ 49 ?b 49 ?f 49 ?n 49 ?r 49 ?t 49)
+   (zenscript--map*
+    ()
+    ?0 52 ?1 52 ?2 52 ?3 52 ?4 52 ?5 52 ?6 52 ?7 52 ?8 52 ?9 52
+    ?a 52 ?b 52 ?c 52 ?d 52 ?e 52 ?f 52
+    ?A 52 ?B 52 ?C 52 ?D 52 ?E 52 ?F 52)
+   (zenscript--map*
+    ()
+    ?0 53 ?1 53 ?2 53 ?3 53 ?4 53 ?5 53 ?6 53 ?7 53 ?8 53 ?9 53
+    ?a 53 ?b 53 ?c 53 ?d 53 ?e 53 ?f 53
+    ?A 53 ?B 53 ?C 53 ?D 53 ?E 53 ?F 53)
+   (zenscript--map*
+    ()
+    ?0 54 ?1 54 ?2 54 ?3 54 ?4 54 ?5 54 ?6 54 ?7 54 ?8 54 ?9 54
+    ?a 54 ?b 54 ?c 54 ?d 54 ?e 54 ?f 54
+    ?A 54 ?B 54 ?C 54 ?D 54 ?E 54 ?F 54)
+   (zenscript--map*
+    ()
+    ?0 49 ?1 49 ?2 49 ?3 49 ?4 49 ?5 49 ?6 49 ?7 49 ?8 49 ?9 49
+    ?a 49 ?b 49 ?c 49 ?d 49 ?e 49 ?f 49
+    ?A 49 ?B 49 ?C 49 ?D 49 ?E 49 ?F 49)
+   (zenscript--map* ()) ;; finished strings
+   ;; 0 start number
+   (zenscript--map*
+    ()
+    ?x 57
+    ?. 59) ; 0
+   ;; hex numbers
+   ;; -0x... shouldn't actually go here,
+   ;; but it doesn't make a difference:
+   ;; -0x... is valid ZenScript anyway,
+   ;; it just gets immediately unary operator-ed
+   (zenscript--map*
+    ()
+    ?0 57 ?1 57 ?2 57 ?3 57 ?4 57 ?5 57 ?6 57 ?7 57 ?8 57 ?9 57
+    ?a 57 ?b 57 ?c 57 ?d 57 ?e 57 ?f 57
+    ?A 57 ?B 57 ?C 57 ?D 57 ?E 57 ?F 57)
+   ;; integers
+   (zenscript--map*
+    ()
+    ?0 58 ?1 58 ?2 58 ?3 58 ?4 58 ?5 58 ?6 58 ?7 58 ?8 58 ?9 58
+    ?. 59)
+   ;; floats
+   (zenscript--map*
+    ()
+    ?0 59 ?1 59 ?2 59 ?3 59 ?4 59 ?5 59 ?6 59 ?7 59 ?8 59 ?9 59
+    ?e 60 ?E 60
+    ?f 63 ?F 63 ?d 63 ?D 63) ;; required first digit
+   (zenscript--map*
+    ()
+    ?0 59 ?1 59 ?2 59 ?3 59 ?4 59 ?5 59 ?6 59 ?7 59 ?8 59 ?9 59
+    ?e 60 ?E 60
+    ?f 63 ?F 63 ?d 63 ?D 63) ;; repeated digits (terminal)
+   (zenscript--map*
+    ()
+    ?0 62 ?1 62 ?2 62 ?3 62 ?4 62 ?5 62 ?6 62 ?7 62 ?8 62 ?9 62
+    ?+ 61 ?- 61) ;; [eE][\+\-]?[0-9]+
+   (zenscript--map*
+    () ;; [0-9]+ required first digit
+    ?0 62 ?1 62 ?2 62 ?3 62 ?4 62 ?5 62 ?6 62 ?7 62 ?8 62 ?9 62
+    ?f 63 ?F 63 ?d 63 ?D 63)
+   (zenscript--map*
+    ()
+    ?0 62 ?1 62 ?2 62 ?3 62 ?4 62 ?5 62 ?6 62 ?7 62 ?8 62 ?9 62
+    ?f 63 ?F 63 ?d 63 ?D 63) ;; [0-9]+ remaining digits (terminal)
+   (zenscript--map* ()) ;; post-[fFdD] (terminal)
+   )
+  "A vector of states for the DFA.
+
+Each state is a hash-table of characters
+to the next state index.")
+
+(defconst zenscript--token-dfa-finals
+  (zenscript--map*
+   ()
+   1 'T_ID
+   2 'T_AOPEN
+   3 'T_ACLOSE
+   4 'T_SQBROPEN
+   5 'T_SQBRCLOSE
+   6 'T_DOT
+   7 'T_DOT2
+   8 'T_COMMA
+   9 'T_PLUS
+   10 'T_PLUSASSIGN
+   11 'T_MINUS
+   12 'T_MINUSASSIGN
+   13 'T_MUL
+   14 'T_MULASSIGN
+   15 'T_DIV
+   16 'T_DIVASSIGN
+   17 'T_MOD
+   18 'T_MODASSIGN
+   19 'T_OR
+   20 'T_ORASSIGN
+   21 'T_OR2
+   22 'T_AND
+   23 'T_ANDASSIGN
+   24 'T_AND2
+   25 'T_XOR
+   26 'T_XORASSIGN
+   27 'T_QUEST
+   28 'T_COLON
+   29 'T_BROPEN
+   30 'T_BRCLOSE
+   31 'T_TILDE
+   32 'T_TILDEASSIGN
+   33 'T_SEMICOLON
+   34 'T_LT
+   35 'T_LTEQ
+   36 'T_GT
+   37 'T_GTEQ
+   38 'T_ASSIGN
+   39 'T_EQ
+   40 'T_NOT
+   41 'T_NOTEQ
+   42 'T_DOLLAR
+   55 'T_STRINGVALUE
+   56 'T_INTVALUE
+   57 'T_INTVALUE
+   58 'T_INTVALUE
+   59 'T_FLOATVALUE
+   62 'T_FLOATVALUE
+   63 'T_FLOATVALUE)
+  "A hashmap of final states indeces.
+
+Each final state is mapped to the token it represents.")
+
 (defun zenscript--tokenize-buffer (&optional from to no-error)
   "Read the buffer into a list of tokens.
 
@@ -78,43 +362,42 @@ Note: this uses the syntax table to handle comments."
     (reverse tokens)))
 
 (defconst zenscript--keyword-map
-  (let ((table (make-hash-table :size 34
-				:test 'equal)))
-    (puthash "frigginConstructor" 'T_ZEN_CONSTRUCTOR table)
-    (puthash "zenConstructor" 'T_ZEN_CONSTRUCTOR table)
-    (puthash "frigginClass" 'T_ZEN_CLASS table)
-    (puthash "zenClass" 'T_ZEN_CLASS table)
-    (puthash "instanceof" 'T_INSTANCEOF table)
-    (puthash "static" 'T_STATIC table)
-    (puthash "global" 'T_GLOBAL table)
-    (puthash "import" 'T_IMPORT table)
-    (puthash "false" 'T_FALSE table)
-    (puthash "true" 'T_TRUE table)
-    (puthash "null" 'T_NULL table)
-    (puthash "break" 'T_BREAK table)
-    (puthash "while" 'T_WHILE table)
-    (puthash "val" 'T_VAL table)
-    (puthash "var" 'T_VAR table)
-    (puthash "return" 'T_RETURN table)
-    (puthash "for" 'T_FOR table)
-    (puthash "else" 'T_ELSE table)
-    (puthash "if" 'T_IF table)
-    (puthash "version" 'T_VERSION table)
-    (puthash "as" 'T_AS table)
-    (puthash "void" 'T_VOID table)
-    (puthash "has" 'T_IN table)
-    (puthash "in" 'T_IN table)
-    (puthash "function" 'T_FUNCTION table)
-    (puthash "string" 'T_STRING table)
-    (puthash "double" 'T_DOUBLE table)
-    (puthash "float" 'T_FLOAT table)
-    (puthash "long" 'T_LONG table)
-    (puthash "int" 'T_INT table)
-    (puthash "short" 'T_SHORT table)
-    (puthash "byte" 'T_BYTE table)
-    (puthash "bool" 'T_BOOL table)
-    (puthash "any" 'T_ANY table)
-    table)
+  (zenscript--map*
+   '(:test equal)
+   "frigginConstructor" 'T_ZEN_CONSTRUCTOR
+   "zenConstructor" 'T_ZEN_CONSTRUCTOR
+   "frigginClass" 'T_ZEN_CLASS
+   "zenClass" 'T_ZEN_CLASS
+   "instanceof" 'T_INSTANCEOF
+   "static" 'T_STATIC
+   "global" 'T_GLOBAL
+   "import" 'T_IMPORT
+   "false" 'T_FALSE
+   "true" 'T_TRUE
+   "null" 'T_NULL
+   "break" 'T_BREAK
+   "while" 'T_WHILE
+   "val" 'T_VAL
+   "var" 'T_VAR
+   "return" 'T_RETURN
+   "for" 'T_FOR
+   "else" 'T_ELSE
+   "if" 'T_IF
+   "version" 'T_VERSION
+   "as" 'T_AS
+   "void" 'T_VOID
+   "has" 'T_IN
+   "in" 'T_IN
+   "function" 'T_FUNCTION
+   "string" 'T_STRING
+   "double" 'T_DOUBLE
+   "float" 'T_FLOAT
+   "long" 'T_LONG
+   "int" 'T_INT
+   "short" 'T_SHORT
+   "byte" 'T_BYTE
+   "bool" 'T_BOOL
+   "any" 'T_ANY)
   "A hash-table of keywords to tokens.")
 
 (defun zenscript--next-token (&optional skip-whitespace)
@@ -149,68 +432,25 @@ file:
 point is put after token, if one was found."
   (let ((begin (point)))
     (when skip-whitespace (zenscript--skip-ws-and-comments))
-    (let ((type (cond ((looking-at "[a-zA-Z_][a-zA-Z_0-9]*")
-		       (or (gethash (buffer-substring-no-properties (match-beginning 0)
-								    (match-end 0))
-				    zenscript--keyword-map)
-			   'T_ID))
-		      ((looking-at (regexp-quote "{")) 'T_AOPEN)
-		      ((looking-at (regexp-quote "}")) 'T_ACLOSE)
-		      ((looking-at (regexp-quote "[")) 'T_SQBROPEN)
-		      ((looking-at (regexp-quote "]")) 'T_SQBRCLOSE)
-		      ((looking-at (regexp-quote "..")) 'T_DOT2)
-		      ((looking-at (regexp-quote ".")) 'T_DOT)
-		      ((looking-at (regexp-quote ",")) 'T_COMMA)
-		      ((looking-at (regexp-quote "+=")) 'T_PLUSASSIGN)
-		      ((looking-at (regexp-quote "+")) 'T_PLUS)
-		      ((looking-at (regexp-quote "-=")) 'T_MINUSASSIGN)
-		      ((looking-at (regexp-quote "-")) 'T_MINUS)
-		      ((looking-at (regexp-quote "*=")) 'T_MULASSIGN)
-		      ((looking-at (regexp-quote "*")) 'T_MUL)
-		      ((looking-at (regexp-quote "/=")) 'T_DIVASSIGN)
-		      ((looking-at (regexp-quote "/")) 'T_DIV)
-		      ((looking-at (regexp-quote "%=")) 'T_MODASSIGN)
-		      ((looking-at (regexp-quote "%")) 'T_MOD)
-		      ((looking-at (regexp-quote "|=")) 'T_ORASSIGN)
-		      ((looking-at (regexp-quote "||")) 'T_OR2)
-		      ((looking-at (regexp-quote "|")) 'T_OR)
-		      ((looking-at (regexp-quote "&=")) 'T_ANDASSIGN)
-		      ((looking-at (regexp-quote "&&")) 'T_AND2)
-		      ((looking-at (regexp-quote "&")) 'T_AND)
-		      ((looking-at (regexp-quote "^=")) 'T_XORASSIGN)
-		      ((looking-at (regexp-quote "^")) 'T_XOR)
-		      ((looking-at (regexp-quote "?")) 'T_QUEST)
-		      ((looking-at (regexp-quote ":")) 'T_COLON)
-		      ((looking-at (regexp-quote "(")) 'T_BROPEN)
-		      ((looking-at (regexp-quote ")")) 'T_BRCLOSE)
-		      ((looking-at (regexp-quote "~=")) 'T_TILDEASSIGN)
-		      ((looking-at (regexp-quote "~")) 'T_TILDE)
-		      ((looking-at (regexp-quote ";")) 'T_SEMICOLON)
-		      ((looking-at (regexp-quote "<=")) 'T_LTEQ)
-		      ((looking-at (regexp-quote "<")) 'T_LT)
-		      ((looking-at (regexp-quote ">=")) 'T_GTEQ)
-		      ((looking-at (regexp-quote ">")) 'T_GT)
-		      ((looking-at (regexp-quote "==")) 'T_EQ)
-		      ((looking-at (regexp-quote "=")) 'T_ASSIGN)
-		      ((looking-at (regexp-quote "!=")) 'T_NOTEQ)
-		      ((looking-at (regexp-quote "!")) 'T_NOT)
-		      ((looking-at (regexp-quote "$")) 'T_DOLLAR)
-		      ((looking-at "-?\\(0\\|[1-9][0-9]*\\)\\.[0-9]+\\([eE][+-]?[0-9]+\\)?[fFdD]?")
-		       'T_FLOATVALUE)
-		      ((or (looking-at "-?\\(0\\|[1-9][0-9]*\\)")
-			   (looking-at "0x[a-fA-F0-9]*"))
-		       'T_INTVALUE)
-		      ((or (looking-at "'\\([^'\\\\]\\|\\\\\\(['\"\\\\/bfnrt]\\|u[0-9a-fA-F]\\{4\\}\\)\\)*?'")
-			   (looking-at "\"\\([^\"\\\\]\\|\\\\\\(['\"\\\\/bfnrt]\\|u[0-9a-fA-F]\\{4\\}\\)\\)*\""))
-		       'T_STRINGVALUE))))
-      (if type
-	  (progn (goto-char (match-end 0))
-		 (list type
-		       (buffer-substring-no-properties (match-beginning 0)
-						       (match-end 0))
-		       (match-beginning 0)))
-	(goto-char begin)
-	()))))
+    (let ((token-start (point))
+	  (state 0))
+      (while (let ((newstate
+		    (gethash (char-after)
+			     (aref zenscript--token-dfa-states
+				   state))))
+	       (when newstate (setq state newstate))
+	       newstate)
+	(forward-char))
+      (let ((type (gethash state zenscript--token-dfa-finals))
+	    (val (buffer-substring-no-properties token-start (point))))
+	(when (eq type 'T_ID)
+	  (setq type
+		(or (gethash val zenscript--keyword-map)
+		    'T_ID)))
+	(if type
+	    (list type val token-start)
+	  (goto-char begin)
+	  ())))))
 
 (defmacro cdr! (list)
   "Set LIST to the cdr of LIST."

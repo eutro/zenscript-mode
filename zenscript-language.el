@@ -129,7 +129,7 @@ Returns a list of type names that can be imported."
 (defvar zenscript--parse-buffer-cache ()
   "This is the cache maintained by `zenscript-parse-buffer`.")
 
-(defcustom zenscript-buffer-parse-idle-period 2
+(defcustom zenscript-buffer-parse-idle-period 0.5
   "How long after idling should the buffer be parsed.
 
 See `zenscript-parse-buffer`.")

@@ -123,7 +123,7 @@ Note: this uses the syntax table to handle comments."
 If SKIP-WHITESPACE is non-nil, whitespace and comments
 are skipped according to `syntax-table`.
 
-Return a pair of the form
+Return a list of the form
 
  (type val pos)
 

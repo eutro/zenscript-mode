@@ -60,8 +60,9 @@
 
 (defconst zenscript-docs-languages '("de" "en" "es" "fr" "it" "ja" "ko" "pl" "ru" "zh"))
 
-(defvar zenscript-mode-map
-  (let ((keymap (make-keymap)))
+(defconst zenscript-mode-map
+  (let ((keymap (make-sparse-keymap)))
+    (define-key keymap (kbd "C-c d") 'zenscript-view-docs)
     keymap))
 
 (define-derived-mode zenscript-mode prog-mode "ZenScript"

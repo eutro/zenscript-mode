@@ -183,16 +183,13 @@ json-loc:
 
 html-loc:
 
-  The location of tree3.html, or nil.
-
-Hooks for 'zenscript-dumpzs-loaded are then run."
+  The location of tree3.html, or nil."
   (let ((json-loc (car location))
 	(html-loc (cdr location)))
-    (prog1
-	(setq zenscript-dumpzs-cache
-	      (cons (when json-loc (zenscript--parse-dumpzs-json json-loc))
-		    (when html-loc (zenscript--parse-dumpzs-html html-loc))))
-      (run-hooks 'zenscript-dumpzs-loaded))))
+    (when (or json-loc html-loc)
+      (setq zenscript-dumpzs-cache
+	    (cons (when json-loc (zenscript--parse-dumpzs-json json-loc))
+		  (when html-loc (zenscript--parse-dumpzs-html html-loc)))))))
 
 (defun zenscript-get-dumpzs (&optional prompt)
   "Retrieve the data dumped by /ct dumpzs.
@@ -211,28 +208,34 @@ html:
 
 If PROMPT is non-nil, the cache may be recalculated, most likely prompting the user for input."
   (or zenscript-dumpzs-cache
-      (when prompt (zenscript-calculate-dumpzs-cache (zenscript-get-dumpzs-location)))))
+      (when prompt (zenscript-calculate-dumpzs-cache (zenscript-get-dumpzs-location)))
+      '(() . ())))
 
 (defun zenscript-get-dumpzs-location ()
   "Resolve /ct dumpzs outpus.
 
 If they cannot be found relative to a parent dir containing crafttweaker.log,
 prompt the user instead."
-  (let ((file (buffer-file-name)))
-    (when file
-      (let* ((minecraft-root (locate-dominating-file file "crafttweaker.log"))
-	     (json-file (when minecraft-root (concat minecraft-root "zs_export.json")))
-	     (html-file (when minecraft-root (concat minecraft-root "crafttweaker_dump/tree3.html"))))
-	(cons (if (and json-file (file-exists-p json-file))
-		  json-file
-		(condition-case _
-		    (read-file-name "Location of /ct dumpzs json: " () () t)
-		  (quit ())))
-	      (if (and html-file (file-exists-p html-file))
-		  html-file
-		(condition-case _
-		    (read-file-name "Location of /ct dumpzs html: " () () t)
-		  (quit ()))))))))
+  (let (minecraft-root
+	json-file
+	html-file)
+    (let ((file (buffer-file-name)))
+      (when file
+	(setq minecraft-root (locate-dominating-file file "crafttweaker.log"))
+	(setq json-file (when minecraft-root (concat minecraft-root "zs_export.json")))
+	(setq html-file (when minecraft-root (concat minecraft-root "crafttweaker_dump/tree3.html"))))
+      (unless (and json-file (file-readable-p json-file))
+	(setq json-file
+	      (condition-case _
+		  (read-file-name "Location of /ct dumpzs json: ")
+		(quit ()))))
+      (unless (and html-file (file-readable-p html-file))
+	(setq html-file
+	      (condition-case _
+		  (read-file-name "Location of /ct dumpzs html: ")
+		(quit ())))))
+    (cons (when (file-readable-p json-file) json-file)
+	  (when (file-readable-p html-file) html-file))))
 
 (defun zenscript-set-dumpzs-location (location)
   "Set the location of /ct dumpzs, used for code completion.

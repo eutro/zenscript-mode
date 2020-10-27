@@ -39,9 +39,10 @@
   :group 'languages)
 
 (defconst zenscript-mode-version
-  "0.1.0-SNAPSHOT"
+  "0.1.0"
   "The current version of `zenscript-mode`.")
 
+;;;###autoload
 (defun zenscript-view-docs ()
   "Open the CraftTweaker docs in your default browser."
   (interactive)
@@ -65,6 +66,7 @@
     (define-key keymap (kbd "C-c d") 'zenscript-view-docs)
     keymap))
 
+;;;###autoload
 (define-derived-mode zenscript-mode prog-mode "ZenScript"
   "Major mode for ZenScript."
   (use-local-map zenscript-mode-map)

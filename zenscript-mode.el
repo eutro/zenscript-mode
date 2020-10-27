@@ -39,7 +39,7 @@
   :group 'languages)
 
 (defconst zenscript-mode-version
-  "0.1.0"
+  "1.0.0"
   "The current version of `zenscript-mode`.")
 
 ;;;###autoload

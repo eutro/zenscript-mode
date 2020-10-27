@@ -68,8 +68,8 @@
 (define-derived-mode zenscript-mode prog-mode "ZenScript"
   "Major mode for ZenScript."
   (use-local-map zenscript-mode-map)
-  (zenscript--init-common)
   (zenscript--init-highlighting)
+  (zenscript--init-common)
   (zenscript--init-indents)
   (zenscript--init-completion)
   (zenscript--init-language))

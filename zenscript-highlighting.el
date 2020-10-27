@@ -78,7 +78,7 @@
 
 (defun zenscript--init-highlighting ()
   "Initialize hooks and locals required by `zenscript-highlighting`."
-  (font-lock-add-keywords () zenscript-mode-font-lock-keywords))
+  (setq font-lock-defaults '(zenscript-mode-font-lock-keywords)))
 
 (provide 'zenscript-highlighting)
 ;;; zenscript-highlighting.el ends here

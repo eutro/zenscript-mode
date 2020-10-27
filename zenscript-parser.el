@@ -580,7 +580,7 @@ statements:
 			 (eq (car (zenscript--peek-token tokens))
 			     'T_IMPORT))
 	       (let (fqname
-		     (pos (caddr (zenscript--get-token tokens)))
+		     (pos (nth 2 (zenscript--get-token tokens)))
 		     rename)
 
 		 (cons! (cadr (zenscript--require-token 'T_ID tokens
@@ -761,7 +761,7 @@ methods:
 	  (reverse fields)
 	  (reverse constructors)
 	  (reverse methods)
-	  (caddr id))))
+	  (nth 2 id))))
 
 (defun zenscript--parse-zenclass-field (tokens static)
   "Parse a field definition of a ZenClass from TOKENS.
@@ -1016,7 +1016,7 @@ The following types are possible:
 		   (zenscript--parse-statement tokens)
 		   (when (zenscript--optional-token 'T_ELSE tokens)
 		     (zenscript--parse-statement tokens))
-		   (caddr next)))
+		   (nth 2 next)))
 	    ('T_FOR
 	     (zenscript--get-token tokens)
 	     (list 'S_FOR
@@ -1058,7 +1058,7 @@ The following types are possible:
 		     (zenscript--require-token 'T_SEMICOLON tokens
 					       "; expected")))))))
     (cons (car statement)
-	  (cons (caddr next)
+	  (cons (nth 2 next)
 		(cdr statement)))))
 
 (defun zenscript--parse-zentype (tokens)
@@ -1259,7 +1259,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
       (throw 'zenscript-parse-error
 	     (list "Unexpected end of file"
 		   ())))
-    (setq position (caddr token))
+    (setq position (nth 2 token))
     (setq left (zenscript--parse-conditional tokens))
     (unless (zenscript--peek-token tokens)
       (throw 'zenscript-parse-error

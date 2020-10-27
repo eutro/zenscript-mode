@@ -69,7 +69,7 @@ type:
 		   (zenscript--symbol-to-type (cadr el))))
 	   (cdr (assoc "Globals" (cdr (zenscript-get-dumpzs)))))
    (mapcar (lambda (import)
-	     (or (caddr import)
+	     (or (nth 2 import)
 		 (last (car import))))
 	   (cadr zenscript--parse-buffer-cache))))
 
@@ -149,7 +149,7 @@ This is run periodically while in `zenscript-mode`."
 	 ()
 	 (lambda ()
 	   (zenscript-parse-buffer buffer)))
-	(let ((hash (buffer-hash)))
+	(let ((hash (secure-hash 'md5 buffer)))
 	  (when (not (string= hash (car zenscript--parse-buffer-cache)))
 	    (when zenscript--last-warning
 	      (delete-overlay zenscript--last-warning)
@@ -174,9 +174,9 @@ This is run periodically while in `zenscript-mode`."
 			  (if (eq 'PARSE_ERROR
 				  (car caught))
 			      (prog1 (cadr caught)
-				(let* ((token (caddr caught))
+				(let* ((token (nth 2 caught))
 				       (start (if token
-						  (caddr token)
+						  (nth 2 token)
 						(1- (point-max))))
 				       (end (if token
 						(+ start
@@ -185,7 +185,7 @@ This is run periodically while in `zenscript-mode`."
 				       (overlay (make-overlay start end
 							      () t)))
 				  (overlay-put overlay 'face 'font-lock-warning-face)
-				  (overlay-put overlay 'help-echo (cadddr caught))
+				  (overlay-put overlay 'help-echo (nth 3 caught))
 				  (setq zenscript--last-warning overlay)))
 			    caught))))))))))
 

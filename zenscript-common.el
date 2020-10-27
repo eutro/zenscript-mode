@@ -134,9 +134,9 @@
       (mapcar (lambda (li)
 		(let ((label (seq-find (zenscript--tag-p 'label) li)))
 		  (if label
-		      (cons (caddr label)
+		      (cons (nth 2 label)
 			    (zenscript--rewrite-html (seq-find (zenscript--tag-p 'ul) li)))
-		    (zenscript--rewrite-html (caddr li)))))
+		    (zenscript--rewrite-html (nth 2 li)))))
 	      (seq-filter (zenscript--tag-p 'li) html))
     html))
 
@@ -234,8 +234,8 @@ prompt the user instead."
 	      (condition-case _
 		  (read-file-name "Location of /ct dumpzs html: ")
 		(quit ())))))
-    (cons (when (file-readable-p json-file) json-file)
-	  (when (file-readable-p html-file) html-file))))
+    (cons (when (and json-file (file-readable-p json-file)) json-file)
+	  (when (and html-file (file-readable-p html-file)) html-file))))
 
 (defun zenscript-set-dumpzs-location (location)
   "Set the location of /ct dumpzs, used for code completion.

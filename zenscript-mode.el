@@ -20,7 +20,7 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-;; Version: 1.1.0
+;; Version: 1.1.0-SNAPSHOT
 ;; URL: https://github.com/eutropius225/zenscript-mode
 ;; Package-Requires: ((emacs "25.1"))
 
@@ -43,7 +43,7 @@
   :group 'languages)
 
 (defconst zenscript-mode-version
-  "1.1.0"
+  "1.1.0-SNAPSHOT"
   "The current version of `zenscript-mode`.")
 
 ;;;###autoload
@@ -58,6 +58,19 @@
                               () () () () "en")))
     (browse-url (concat zenscript-docs-base-url ver "/" loc))))
 
+;;;###autoload
+(defun zenscript-search-docs ()
+  "Search for a string in the CraftTweaker docs in your default browser."
+  (interactive)
+  (let ((ver (completing-read "Game version (default: 1.12): "
+                              zenscript-game-versions
+                              () () () () "1.12"))
+        (loc (completing-read "Select your language (default: en): "
+                              zenscript-docs-languages
+                              () () () () "en"))
+        (query (read-string "Search: ")))
+    (browse-url (concat zenscript-docs-base-url ver "/" loc "/search/?search=" query))))
+
 (defconst zenscript-docs-base-url "https://docs.blamejared.com/"
   "The base URL for the official CraftTweaker docs.")
 
@@ -67,7 +80,8 @@
 
 (defconst zenscript-mode-map
   (let ((keymap (make-sparse-keymap)))
-    (define-key keymap (kbd "C-c C-v C-d") 'zenscript-view-docs)
+    (define-key keymap (kbd "C-c C-v C-d") #'zenscript-view-docs)
+    (define-key keymap (kbd "C-c C-s C-d") #'zenscript-search-docs)
     keymap))
 
 ;;;###autoload

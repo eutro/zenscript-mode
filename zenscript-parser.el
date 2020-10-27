@@ -1835,7 +1835,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
                              (if member
                                  (cadr member)
                                (zenscript--unescape-string-token
-                                (zenscript--require-token 'T_STRING tokens
+                                (zenscript--require-token 'T_STRINGVALUE tokens
                                                           "identifier or string expected")))))))
               ((or (zenscript--optional-token 'T_DOT2 tokens)
                    (let ((peeked (zenscript--peek-token tokens)))
@@ -2067,9 +2067,10 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
              (reverse statements))))
     ('T_LT
      (zenscript--get-token tokens)
-     (let (btokens)
-       (while (not (zenscript--optional-token 'T_GT tokens))
-         (zenscript--cons! (zenscript--get-token tokens) btokens))
+     (let (btokens nexttoken)
+       (while (and (not (zenscript--optional-token 'T_GT tokens))
+                   (setq nexttoken (zenscript--get-token tokens)))
+         (zenscript--cons! nexttoken btokens))
        (list 'E_BRACKET (reverse btokens))))
     ('T_SQBROPEN
      (zenscript--get-token tokens)

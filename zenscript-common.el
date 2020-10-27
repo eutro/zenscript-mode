@@ -140,7 +140,7 @@
 	      (seq-filter (zenscript--tag-p 'li) html))
     html))
 
-(defmacro ->> (x &optional form &rest more)
+(defmacro zenscript--->> (x &optional form &rest more)
   "Thread the expr through the forms.
 
 Insert X as the last item in FORM,
@@ -153,7 +153,7 @@ last item in second form, etc."
    ((null more) (if (listp form)
                     `(,@form ,x)
                   (list form x)))
-   (:else `(->> (->> ,x ,form) ,@more))))
+   (:else `(zenscript--->> (zenscript--->> ,x ,form) ,@more))))
 
 (defun zenscript--parse-dumpzs-html (loc)
   "Parse the contents of /zs dumpzs html at LOC."
@@ -162,11 +162,12 @@ last item in second form, etc."
 	   (with-temp-buffer
 	     (insert-file-contents loc)
 	     (libxml-parse-html-region (point-min) (point-max)))))
-      (->> html
-	   (seq-find (zenscript--tag-p 'body))
-	   (seq-find (zenscript--tag-p 'div))
-	   (seq-find (zenscript--tag-p 'ul))
-	   (zenscript--rewrite-html)))
+      (zenscript--->>
+       html
+       (seq-find (zenscript--tag-p 'body))
+       (seq-find (zenscript--tag-p 'div))
+       (seq-find (zenscript--tag-p 'ul))
+       (zenscript--rewrite-html)))
     (message "libxml not available, didn't parse /zs dumpzs html")
     ()))
 

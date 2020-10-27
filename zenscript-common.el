@@ -1,4 +1,4 @@
-;;; zenscript-common.el --- Common variables for zenscript-mode. -*- lexical-binding: t -*-
+;;; zenscript-common.el --- Common variables for zenscript-mode -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2020 Eutro
 
@@ -22,7 +22,8 @@
 
 ;;; Commentary:
 
-;; Common variables for zenscript-mode.
+;; This module of zenscript-mode provides some common variables
+;; used by other modules.
 
 ;;; Code:
 
@@ -90,7 +91,7 @@
 
 (defconst zenscript-punctuation
   (append zenscript-math-operators
-	  '(";" ",")))
+          '(";" ",")))
 
 (defconst zenscript-operator-keywords
   '("in" "has" "as" "instanceof"))
@@ -110,10 +111,10 @@
 
 (defconst zenscript-all-keywords
   (append zenscript-var-keywords
-	  zenscript-function-keywords
-	  zenscript-class-keywords
-	  zenscript-operator-keywords
-	  '("if" "else" "version" "for" "return" "while" "break" "import")))
+          zenscript-function-keywords
+          zenscript-class-keywords
+          zenscript-operator-keywords
+          '("if" "else" "version" "for" "return" "while" "break" "import")))
 
 (defvar zenscript-dumpzs-cache ()
   "The cached data read from /ct dumpzs, or null if it should be recalculated.")
@@ -126,18 +127,18 @@
   "Return a predicate which will return non-nil if EL is of type TAG."
   (lambda (el)
     (and (listp el)
-	 (eq tag (car el)))))
+         (eq tag (car el)))))
 
 (defun zenscript--rewrite-html (html)
   "Convert a tag HTML to a list recursively."
   (if (listp html)
       (mapcar (lambda (li)
-		(let ((label (seq-find (zenscript--tag-p 'label) li)))
-		  (if label
-		      (cons (nth 2 label)
-			    (zenscript--rewrite-html (seq-find (zenscript--tag-p 'ul) li)))
-		    (zenscript--rewrite-html (nth 2 li)))))
-	      (seq-filter (zenscript--tag-p 'li) html))
+                (let ((label (seq-find (zenscript--tag-p 'label) li)))
+                  (if label
+                      (cons (nth 2 label)
+                            (zenscript--rewrite-html (seq-find (zenscript--tag-p 'ul) li)))
+                    (zenscript--rewrite-html (nth 2 li)))))
+              (seq-filter (zenscript--tag-p 'li) html))
     html))
 
 (defmacro zenscript--->> (x &optional form &rest more)
@@ -158,16 +159,16 @@ last item in second form, etc."
 (defun zenscript--parse-dumpzs-html (loc)
   "Parse the contents of /zs dumpzs html at LOC."
   (if (fboundp 'libxml-parse-html-region)
-    (let ((html
-	   (with-temp-buffer
-	     (insert-file-contents loc)
-	     (libxml-parse-html-region (point-min) (point-max)))))
-      (zenscript--->>
-       html
-       (seq-find (zenscript--tag-p 'body))
-       (seq-find (zenscript--tag-p 'div))
-       (seq-find (zenscript--tag-p 'ul))
-       (zenscript--rewrite-html)))
+      (let ((html
+             (with-temp-buffer
+               (insert-file-contents loc)
+               (libxml-parse-html-region (point-min) (point-max)))))
+        (zenscript--->>
+         html
+         (seq-find (zenscript--tag-p 'body))
+         (seq-find (zenscript--tag-p 'div))
+         (seq-find (zenscript--tag-p 'ul))
+         (zenscript--rewrite-html)))
     (message "libxml not available, didn't parse /zs dumpzs html")
     ()))
 
@@ -186,11 +187,11 @@ html-loc:
 
   The location of tree3.html, or nil."
   (let ((json-loc (car location))
-	(html-loc (cdr location)))
+        (html-loc (cdr location)))
     (when (or json-loc html-loc)
       (setq zenscript-dumpzs-cache
-	    (cons (when json-loc (zenscript--parse-dumpzs-json json-loc))
-		  (when html-loc (zenscript--parse-dumpzs-html html-loc)))))))
+            (cons (when json-loc (zenscript--parse-dumpzs-json json-loc))
+                  (when html-loc (zenscript--parse-dumpzs-html html-loc)))))))
 
 (defun zenscript-get-dumpzs (&optional prompt)
   "Retrieve the data dumped by /ct dumpzs.
@@ -218,25 +219,25 @@ If PROMPT is non-nil, the cache may be recalculated, most likely prompting the u
 If they cannot be found relative to a parent dir containing crafttweaker.log,
 prompt the user instead."
   (let (minecraft-root
-	json-file
-	html-file)
+        json-file
+        html-file)
     (let ((file (buffer-file-name)))
       (when file
-	(setq minecraft-root (locate-dominating-file file "crafttweaker.log"))
-	(setq json-file (when minecraft-root (concat minecraft-root "zs_export.json")))
-	(setq html-file (when minecraft-root (concat minecraft-root "crafttweaker_dump/tree3.html"))))
+        (setq minecraft-root (locate-dominating-file file "crafttweaker.log"))
+        (setq json-file (when minecraft-root (concat minecraft-root "zs_export.json")))
+        (setq html-file (when minecraft-root (concat minecraft-root "crafttweaker_dump/tree3.html"))))
       (unless (and json-file (file-readable-p json-file))
-	(setq json-file
-	      (condition-case _
-		  (read-file-name "Location of /ct dumpzs json: ")
-		(quit ()))))
+        (setq json-file
+              (condition-case _
+                  (read-file-name "Location of /ct dumpzs json: ")
+                (quit ()))))
       (unless (and html-file (file-readable-p html-file))
-	(setq html-file
-	      (condition-case _
-		  (read-file-name "Location of /ct dumpzs html: ")
-		(quit ())))))
+        (setq html-file
+              (condition-case _
+                  (read-file-name "Location of /ct dumpzs html: ")
+                (quit ())))))
     (cons (when (and json-file (file-readable-p json-file)) json-file)
-	  (when (and html-file (file-readable-p html-file)) html-file))))
+          (when (and html-file (file-readable-p html-file)) html-file))))
 
 (defun zenscript-set-dumpzs-location (location)
   "Set the location of /ct dumpzs, used for code completion.

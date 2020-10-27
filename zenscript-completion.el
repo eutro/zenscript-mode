@@ -1,4 +1,4 @@
-;;; zenscript-completion.el --- Code completion for ZenScript. -*- lexical-binding: t -*-
+;;; zenscript-completion.el --- Code completion for ZenScript -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2020 Eutro
 
@@ -22,7 +22,9 @@
 
 ;;; Commentary:
 
-;; Code completion for ZenScript.
+;; This module of zenscript-mode provides code completion
+;; based upon knowledge of the language's keywords, and from
+;; information provided by zenscript-language.
 
 ;;; Code:
 
@@ -32,9 +34,9 @@
 (defun zenscript-complete-other (prefix)
   "Complete PREFIX with context at point."
   (all-completions prefix
-		   (append zenscript-all-keywords
-			   zenscript-constants
-			   (zenscript--buffer-vals))))
+                   (append zenscript-all-keywords
+                           zenscript-constants
+                           (zenscript--buffer-vals))))
 
 (defun zenscript-complete-import (prefix)
   "Complete the import PREFIX."
@@ -54,8 +56,8 @@
   (= (point)
      (save-excursion
        (or (and (re-search-backward regex (point-min) t)
-		(match-end 0))
-	   0))))
+                (match-end 0))
+           0))))
 
 (defun zenscript--looking-at-member-access-p ()
   "Return non-nil if looking at member access."
@@ -64,7 +66,7 @@
 (defun zenscript--complete-preprocessor (prefix)
   "Complete the preprocessor beginning with PREFIX."
   (all-completions prefix (mapcar (lambda (pp) (concat "#" pp))
-				  zenscript-preprocessors)))
+                                  zenscript-preprocessors)))
 
 (defun zenscript--looking-at-preprocessor-p ()
   "Return non-nil if looking at a preprocessor."
@@ -73,22 +75,22 @@
 (defun zenscript-complete-at-point ()
   "Complete the symbol at point."
   (cond ((zenscript--looking-at-import-p)
-	 (let ((bounds (bounds-of-thing-at-point 'symbol)))
-	   (list (if bounds (car bounds) (point))
-		 (if bounds (cdr bounds) (point))
-		 (completion-table-dynamic #'zenscript-complete-import))))
-	((zenscript--looking-at-member-access-p)
-	 (list (match-beginning 1)
-	       (match-end 1)
-	       (completion-table-dynamic #'zenscript-complete-member-access)))
-	((zenscript--looking-at-preprocessor-p)
-	 (list (match-beginning 0)
-	       (match-end 0)
-	       (completion-table-dynamic #'zenscript--complete-preprocessor)))
-	(t (let ((bounds (bounds-of-thing-at-point 'symbol)))
-	   (list (if bounds (car bounds) (point))
-		 (if bounds (cdr bounds) (point))
-		 (completion-table-dynamic #'zenscript-complete-other))))))
+         (let ((bounds (bounds-of-thing-at-point 'symbol)))
+           (list (if bounds (car bounds) (point))
+                 (if bounds (cdr bounds) (point))
+                 (completion-table-dynamic #'zenscript-complete-import))))
+        ((zenscript--looking-at-member-access-p)
+         (list (match-beginning 1)
+               (match-end 1)
+               (completion-table-dynamic #'zenscript-complete-member-access)))
+        ((zenscript--looking-at-preprocessor-p)
+         (list (match-beginning 0)
+               (match-end 0)
+               (completion-table-dynamic #'zenscript--complete-preprocessor)))
+        (t (let ((bounds (bounds-of-thing-at-point 'symbol)))
+             (list (if bounds (car bounds) (point))
+                   (if bounds (cdr bounds) (point))
+                   (completion-table-dynamic #'zenscript-complete-other))))))
 
 (defun zenscript--init-completion ()
   "Initialize hooks and locals required by `zenscript-completion`."

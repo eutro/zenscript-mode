@@ -1,4 +1,4 @@
-;;; zenscript-highlighting.el --- Code highlighting for ZenScript. -*- lexical-binding: t -*-
+;;; zenscript-highlighting.el --- Code highlighting for ZenScript -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2020 Eutro
 
@@ -22,7 +22,8 @@
 
 ;;; Commentary:
 
-;; Code highlighting for ZenScript.
+;; This module of zenscript-mode provides code highlighting
+;; with font-lock.
 
 ;;; Code:
 

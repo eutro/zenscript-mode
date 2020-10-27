@@ -1,4 +1,4 @@
-;;; zenscript-indentation.el --- Code indentation for ZenScript. -*- lexical-binding: t -*-
+;;; zenscript-indentation.el --- Code indentation for ZenScript -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2020 Eutro
 
@@ -22,8 +22,10 @@
 
 ;;; Commentary:
 
-;; Code indentation for ZenScript.
-;; Very similar to JavaScript.
+;; This module of zenscript-mode provides indentation for ZenScript code.
+
+;; The indentation rules are based on those of similar languages,
+;; such as JavaScript and Java.
 
 ;;; Code:
 
@@ -83,7 +85,7 @@ The value must be no less than minus `zenscript-indent-level'."
 
 (defconst zenscript--indentation-operator-re
   (concat "[+-*/%|&^?:~<>=!$\\.)]\\([^-+*/]=?\\)\\|"
-	  (zenscript--word-from zenscript-operator-keywords))
+          (zenscript--word-from zenscript-operator-keywords))
   "Regex matching operators that affect the indentation of continued expressions.")
 
 (defun zenscript--looking-at-operator-p ()
@@ -122,12 +124,12 @@ PARSE-STATUS is the status returned from `syntax-pps`."
   (save-excursion
     (back-to-indentation)
     (cond ((nth 4 parse-status) 0) ; inside comment
-	  ((nth 3 parse-status) 0) ; inside string
+          ((nth 3 parse-status) 0) ; inside string
           ((nth 1 parse-status)
-	   ;; A single closing paren/bracket should be indented at the
-	   ;; same level as the opening statement.
+           ;; A single closing paren/bracket should be indented at the
+           ;; same level as the opening statement.
            (let ((same-indent-p (looking-at "[]})]"))
-		 (continued-expr-p (zenscript--continued-expression-p)))
+                 (continued-expr-p (zenscript--continued-expression-p)))
              (goto-char (nth 1 parse-status)) ; go to the opening char
              (if (looking-at "[({[]\\s-*\\(/[/*]\\|$\\)")
                  (progn ; nothing following the opening paren/bracket
@@ -135,13 +137,13 @@ PARSE-STATUS is the status returned from `syntax-pps`."
                    (when (eq (char-before) ?\)) (backward-list))
                    (back-to-indentation)
                    (cond (same-indent-p (current-column))
-			 (continued-expr-p (+ (current-column) (* 2 zenscript-indent-level)
-					      zenscript-expr-indent-offset))
-			 (t (+ (current-column) zenscript-indent-level
-			     (pcase (char-after (nth 1 parse-status))
-			       (?\( zenscript-paren-indent-offset)
-			       (?\[ zenscript-square-indent-offset)
-			       (?\{ zenscript-curly-indent-offset))))))
+                         (continued-expr-p (+ (current-column) (* 2 zenscript-indent-level)
+                                              zenscript-expr-indent-offset))
+                         (t (+ (current-column) zenscript-indent-level
+                               (pcase (char-after (nth 1 parse-status))
+                                 (?\( zenscript-paren-indent-offset)
+                                 (?\[ zenscript-square-indent-offset)
+                                 (?\{ zenscript-curly-indent-offset))))))
                ;; If there is something following the opening
                ;; paren/bracket, everything else should be indented at
                ;; the same level.
@@ -149,25 +151,25 @@ PARSE-STATUS is the status returned from `syntax-pps`."
                  (forward-char)
                  (skip-chars-forward " \t"))
                (current-column))))
-	  ((zenscript--continued-expression-p)
-	   (+ zenscript-indent-level
-	      zenscript-expr-indent-offset))
+          ((zenscript--continued-expression-p)
+           (+ zenscript-indent-level
+              zenscript-expr-indent-offset))
           (t 0))))
 
 (defun zenscript-indent-line ()
   "Indent the current line as ZenScript."
   (interactive)
   (let* ((parse-status (save-excursion (syntax-ppss (point-at-bol))))
-	 (offset (- (point) (save-excursion (back-to-indentation) (point)))))
+         (offset (- (point) (save-excursion (back-to-indentation) (point)))))
     (if (nth 3 parse-status) ;; in a string
-	'noindent
+        'noindent
       (indent-line-to (zenscript--get-indentation parse-status))
       (when (> offset 0) (forward-char offset)))))
 
 (defun zenscript--init-indents ()
   "Initialize hooks and locals required by `zenscript-indentation`."
   (setq-local electric-indent-chars '(?\( ?\) ?\{ ?\} ?\[ ?\] ?\n ?\;))
-  (setq-local indent-line-function 'zenscript-indent-line))
+  (setq-local indent-line-function #'zenscript-indent-line))
 
 (provide 'zenscript-indentation)
 ;;; zenscript-indentation.el ends here

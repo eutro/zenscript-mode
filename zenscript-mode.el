@@ -1,4 +1,4 @@
-;;; zenscript-mode.el --- Major mode for ZenScript. -*- lexical-binding: t -*-
+;;; zenscript-mode.el --- Major mode for ZenScript -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2020 Eutro
 
@@ -20,6 +20,10 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
+;; Version: 1.1.0
+;; URL: https://github.com/eutropius225/zenscript-mode
+;; Package-Requires: ((emacs "25.1"))
+
 ;;; Commentary:
 
 ;; Major mode for ZenScript.
@@ -39,7 +43,7 @@
   :group 'languages)
 
 (defconst zenscript-mode-version
-  "1.0.0"
+  "1.1.0"
   "The current version of `zenscript-mode`.")
 
 ;;;###autoload
@@ -47,11 +51,11 @@
   "Open the CraftTweaker docs in your default browser."
   (interactive)
   (let ((ver (completing-read "Game version (default: 1.12): "
-			      zenscript-game-versions
-			      () () () () "1.12"))
-	(loc (completing-read "Select your language (default: en): "
-			      zenscript-docs-languages
-			      () () () () "en")))
+                              zenscript-game-versions
+                              () () () () "1.12"))
+        (loc (completing-read "Select your language (default: en): "
+                              zenscript-docs-languages
+                              () () () () "en")))
     (browse-url (concat zenscript-docs-base-url ver "/" loc))))
 
 (defconst zenscript-docs-base-url "https://docs.blamejared.com/"
@@ -63,7 +67,7 @@
 
 (defconst zenscript-mode-map
   (let ((keymap (make-sparse-keymap)))
-    (define-key keymap (kbd "C-c d") 'zenscript-view-docs)
+    (define-key keymap (kbd "C-c C-v C-d") 'zenscript-view-docs)
     keymap))
 
 ;;;###autoload

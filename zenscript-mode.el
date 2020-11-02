@@ -94,6 +94,7 @@
   (zenscript--init-completion)
   (zenscript--init-language))
 
+;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.zs\\'" . zenscript-mode))
 
 (provide 'zenscript-mode)

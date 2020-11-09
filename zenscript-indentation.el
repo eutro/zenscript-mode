@@ -123,7 +123,14 @@ The value must be no less than minus `zenscript-indent-level'."
 PARSE-STATUS is the status returned from `syntax-pps`."
   (save-excursion
     (back-to-indentation)
-    (cond ((nth 4 parse-status) 0) ; inside comment
+    (cond (;; inside comment
+           (nth 4 parse-status)
+           (+ (if (looking-at-p "*")
+                  1
+                2)
+              (progn
+                (goto-char (nth 8 parse-status))
+                (current-column))))
           ((nth 3 parse-status) 0) ; inside string
           ((nth 1 parse-status)
            ;; A single closing paren/bracket should be indented at the
@@ -150,7 +157,12 @@ PARSE-STATUS is the status returned from `syntax-pps`."
                (unless same-indent-p
                  (forward-char)
                  (skip-chars-forward " \t"))
-               (current-column))))
+               ;; continued expressions should still get an extra indent
+               (+ (if continued-expr-p
+                      (+ zenscript-indent-level
+                         zenscript-expr-indent-offset)
+                    0)
+                  (current-column)))))
           ((zenscript--continued-expression-p)
            (+ zenscript-indent-level
               zenscript-expr-indent-offset))

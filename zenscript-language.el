@@ -77,7 +77,7 @@ type:
 
 (defun zenscript--get-importables-1 (nodes)
   "Get a list of types or static members below NODES in the tree."
-  (apply 'append
+  (apply #'append
          (mapcar (lambda (node)
                    (if (stringp node)
                        (list node)
@@ -117,7 +117,7 @@ extra-info:
   A list (possibly nil) of extra information relating to the member."
   (if types
       ()
-    (apply 'append
+    (apply #'append
            (mapcar (lambda (type)
                      (cdr (assoc 'members type)))
                    (cdr (assoc 'zenTypeDumps (car (zenscript-get-dumpzs))))))))
@@ -134,7 +134,9 @@ Returns a list of type names that can be imported."
 (defcustom zenscript-buffer-parse-idle-period 0.5
   "How long after idling should the buffer be parsed.
 
-See `zenscript-parse-buffer`.")
+See `zenscript-parse-buffer`."
+  :group 'zenscript
+  :type #'numberp)
 
 (defvar zenscript--last-warning ()
   "The last warning by `zenscript-parse-buffer`.")
@@ -152,7 +154,7 @@ This is run periodically while in `zenscript-mode`."
          (lambda ()
            (zenscript-parse-buffer buffer)))
         (let ((hash (secure-hash 'md5 buffer)))
-          (when (not (string= hash (car zenscript--parse-buffer-cache)))
+          (unless (string= hash (car zenscript--parse-buffer-cache))
             (when zenscript--last-warning
               (delete-overlay zenscript--last-warning)
               (setq zenscript--last-warning ()))

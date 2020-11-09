@@ -49,7 +49,7 @@ KWARGS are additional arguments to `make-hash-table`.
 
 Each odd element of KVS is a key corresponding to the value
 immediately after it."
-  (let ((table (apply 'make-hash-table
+  (let ((table (apply #'make-hash-table
                       :size (/ (length kvs) 2)
                       kwargs)))
     (while kvs
@@ -1745,7 +1745,7 @@ what about \\[IDIOT JAVA PREPROCESSOR]u?"
         (when saw-backslash
           (zenscript--cons! "\\" string-builder))
 
-        (apply 'concat (reverse string-builder)))
+        (apply #'concat (reverse string-builder)))
     (args-out-of-range
      (throw 'zenscript-parse-error
             (list "Error parsing string"
@@ -1857,7 +1857,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
                          (list 'E_INDEX base index)))))
               ((zenscript--optional-token 'T_BROPEN tokens)
                (let (arguments)
-                 (when (not (zenscript--optional-token 'T_BRCLOSE tokens))
+                 (unless (zenscript--optional-token 'T_BRCLOSE tokens)
                    (zenscript--cons! (zenscript--parse-expression tokens)
                                      arguments)
                    (while (zenscript--optional-token 'T_COMMA tokens)

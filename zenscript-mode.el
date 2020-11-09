@@ -46,6 +46,13 @@
   "1.1.0-SNAPSHOT"
   "The current version of `zenscript-mode`.")
 
+(defconst zenscript-docs-base-url "https://docs.blamejared.com/"
+  "The base URL for the official CraftTweaker docs.")
+
+(defconst zenscript-game-versions '("1.12" "1.14" "1.15" "1.16"))
+
+(defconst zenscript-docs-languages '("de" "en" "es" "fr" "it" "ja" "ko" "pl" "ru" "zh"))
+
 ;;;###autoload
 (defun zenscript-view-docs ()
   "Open the CraftTweaker docs in your default browser."
@@ -70,13 +77,6 @@
                               () () () () "en"))
         (query (read-string "Search: ")))
     (browse-url (concat zenscript-docs-base-url ver "/" loc "/search/?search=" query))))
-
-(defconst zenscript-docs-base-url "https://docs.blamejared.com/"
-  "The base URL for the official CraftTweaker docs.")
-
-(defconst zenscript-game-versions '("1.12" "1.14" "1.15" "1.16"))
-
-(defconst zenscript-docs-languages '("de" "en" "es" "fr" "it" "ja" "ko" "pl" "ru" "zh"))
 
 (defconst zenscript-mode-map
   (let ((keymap (make-sparse-keymap)))

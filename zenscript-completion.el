@@ -94,7 +94,7 @@
 
 (defun zenscript--init-completion ()
   "Initialize hooks and locals required by `zenscript-completion`."
-  (add-hook 'completion-at-point-functions 'zenscript-complete-at-point t t))
+  (add-hook 'completion-at-point-functions #'zenscript-complete-at-point t t))
 
 (provide 'zenscript-completion)
 ;;; zenscript-completion.el ends here

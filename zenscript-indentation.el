@@ -111,7 +111,7 @@ The value must be no less than minus `zenscript-indent-level'."
            (progn
              (skip-chars-backward " \t")
              (or (bobp) (backward-char))
-             (and (> (point) (point-min))
+             (and (not (bobp))
                   (save-excursion (backward-char) (not (looking-at "[/*]/")))
                   (zenscript--looking-at-operator-p)
                   (and (progn (backward-char)

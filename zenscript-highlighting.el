@@ -31,11 +31,13 @@
 
 (defface zenscript-preprocessor-face
   '((t (:inherit font-lock-constant-face)))
-  "The face used for preprocessors, like `#debug`, `#loader` etc.")
+  "The face used for preprocessors, like `#debug`, `#loader` etc."
+  :group 'zenscript)
 
 (defface zenscript-bracket-prefix-face
   '((t (:inherit font-lock-constant-face)))
-  "The face used for the first token in bracket handlers.")
+  "The face used for the first token in bracket handlers."
+  :group 'zenscript)
 
 (defconst zenscript-mode-font-lock-keywords
   `(;; preprocessors
@@ -68,7 +70,14 @@
     ;; function invocation
     ("\\(\\w+\\)(" (1 font-lock-function-name-face))
     ;; numbers
-    ("\\b\\(\\(0\\(x\\|X\\)[0-9a-fA-F]*\\)\\|\\(\\([0-9]+\\.?[0-9]*\\)\\|\\(\\.[0-9]+\\)\\)\\(\\(e\\|E\\)\\(\\+\\|-\\)?[0-9]+\\)?\\)\\([LlFfUuDd]\\|UL\\|ul\\)?\\b"
+    (,(concat
+       ;; integers
+       "\\b\\(\\(0\\(x\\|X\\)[0-9a-fA-F]*\\)"
+       "\\|"
+       ;; floats
+       "\\(\\([0-9]+\\.?[0-9]*\\)\\|\\(\\.[0-9]+\\)\\)"
+       "\\(\\(e\\|E\\)\\(\\+\\|-\\)?[0-9]+\\)?\\)"
+       "\\([LlFfUuDd]\\|UL\\|ul\\)?\\b")
      (0 font-lock-constant-face))
     ;; bracket handlers
     ("<\\(\\w+\\).+?>"

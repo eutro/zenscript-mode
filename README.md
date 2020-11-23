@@ -1,6 +1,8 @@
 # ZenScript Mode
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MELPA](https://melpa.org/packages/zenscript-mode-badge.svg)](https://melpa.org/#/zenscript-mode)
+[![MELPA Stable](https://stable.melpa.org/packages/zenscript-mode-badge.svg)](https://stable.melpa.org/#/zenscript-mode)
 
 `zenscript-mode` is an Emacs major mode for editing
 [ZenScript](https://github.com/CraftTweaker/ZenScript) code.

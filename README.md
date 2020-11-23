@@ -1,5 +1,7 @@
 # ZenScript Mode
 
+[![MELPA](https://melpa.org/packages/zenscript-mode-badge.svg)](https://melpa.org/#/zenscript-mode)
+
 `zenscript-mode` is an Emacs major mode for editing
 [ZenScript](https://github.com/CraftTweaker/ZenScript) code.
 

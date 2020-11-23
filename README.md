@@ -8,7 +8,22 @@ currently primitive, code completion.
 
 # Installing
 
-`zenscript-mode` can currently be installed in the following way:
+`zenscript-mode` can currently be installed in the following ways:
+
+## package.el
+
+The recommended way to install `zenscript-mode` is with `package.el`,
+the built-in package manager for Emacs.
+
+Zenscript Mode is available on both [MELPA](https://melpa.org)
+and [MELPA stable](https://stable.melpa.org).
+
+With [MELPA or MELPA stable set up](https://melpa.org/#/getting-started),
+and having run
+<kbd>M-x</kbd> `package-refresh-contents` <kbd>RET</kbd>
+install with the command:
+
+<kbd>M-x</kbd> `package-install` <kbd>RET</kbd> `zenscript-mode` <kbd>RET</kbd>
 
 ## Manual Installation
 

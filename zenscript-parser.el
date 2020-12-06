@@ -45,7 +45,7 @@
 (defun zenscript--map* (kwargs &rest kvs)
   "Make a hashmap.
 
-KWARGS are additional arguments to `make-hash-table`.
+KWARGS are additional arguments to `make-hash-table'.
 
 Each odd element of KVS is a key corresponding to the value
 immediately after it."
@@ -329,12 +329,12 @@ Each final state is mapped to the token it represents.")
 (defun zenscript--tokenize-buffer (&optional from to no-error)
   "Read the buffer into a list of tokens.
 
-FROM is the start position, and defaults to `point-min`.
+FROM is the start position, and defaults to `point-min'.
 
-TO is the end position, and defaults to `point-max`.
+TO is the end position, and defaults to `point-max'.
 
 If a token is unrecognised, and NO-ERROR is nil,
-`zenscript-unrecognised-token` is thrown with point.
+'zenscript-unrecognised-token is thrown with point.
 If NO-ERROR is non-nil, then parsing stops instead, returning the partially
 accumulated list of tokens, and leaving point where it is.
 
@@ -406,7 +406,7 @@ Note: this uses the syntax table to handle comments."
   "Parse the next ZenScript token after point.
 
 If SKIP-WHITESPACE is non-nil, whitespace and comments
-are skipped according to `syntax-table`.
+are skipped according to `syntax-table'.
 
 Return a list of the form
 
@@ -463,6 +463,17 @@ point is put after token, if one was found."
   "Do (cons CAR LIST) and set LIST to it."
   `(setq ,list (cons ,car ,list)))
 
+(defvar zenscript-parse-error-hook ()
+  "A list of hooks run when an error occurs while parsing.
+
+Each hook is called with the error message and the token where it occured.")
+
+(defun zenscript--throw-parse-error (message token)
+  "Run `zenscript-parse-error-hook' and throw 'zenscript-parse-error with (MESSAGE TOKEN)."
+  (run-hook-with-args 'zenscript-parse-error-hook message token)
+  (throw 'zenscript-parse-error
+         (list message token)))
+
 (defun zenscript--make-tokenstream (token-list)
   "Make a tokenstream from a list of tokens, TOKEN-LIST."
   (lambda (op &rest args)
@@ -476,40 +487,40 @@ point is put after token, if one was found."
       ('REQUIRE (if (eq (car args) (caar token-list))
                     (prog1 (car token-list)
                       (zenscript--cdr! token-list))
-                  (throw 'zenscript-parse-error
-                         (list (cadr args) (car token-list))))))))
+                  (zenscript--throw-parse-error
+                   (cadr args) (car token-list)))))))
 
 (defun zenscript--require-token (type tokens message)
   "Require a token of type TYPE from TOKENS.
 
 Return the first token if it is of the correct type, otherwise
-throw 'zenscript-parse-error with MESSAGE.
+zenscript--throw-parse-error with MESSAGE.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (funcall tokens 'REQUIRE type message))
 
 (defun zenscript--peek-token (tokens)
   "Look at the next token in the stream TOKENS, without consuming it.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (funcall tokens 'PEEK))
 
 (defun zenscript--get-token (tokens)
   "Get the next token in the stream TOKENS, consuming it.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (funcall tokens 'NEXT))
 
 (defun zenscript--optional-token (type tokens)
   "Get the next token if it is of type TYPE.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (funcall tokens 'OPTIONAL type))
 
 (defun zenscript--has-next-token (tokens)
   "Return t if TOKENS has any more tokens remaining.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (when (zenscript--peek-token tokens) t))
 
 (defun zenscript--parse-tokens (tokenlist)
@@ -519,13 +530,7 @@ TOKENLIST is a list of tokens of the form
 
  (type val pos)
 
-As returned by `zenscript--next-token`.
-
-If an error is encountered while parsing,
-'zenscript-parse-error is thrown with a
-list of the form:
-
- ('PARSE_ERROR return next-token message)
+As returned by `zenscript--next-token'.
 
 return:
 
@@ -566,67 +571,58 @@ imports:
 
 functions:
 
-  See `zenscript--parse-function`.
+  See `zenscript--parse-function'.
 
 zenclasses:
 
-  See `zenscript--parse-zenclass`.
+  See `zenscript--parse-zenclass'.
 
 statements:
 
-  See `zenscript--parse-statement`."
+  See `zenscript--parse-statement'."
   (let ((tokens (zenscript--make-tokenstream tokenlist))
         imports functions zenclasses statements)
-    (let ((caught
-           (catch 'zenscript-parse-error
-             (while (and (zenscript--has-next-token tokens)
-                         (eq (car (zenscript--peek-token tokens))
-                             'T_IMPORT))
-               (let (fqname
-                     (pos (nth 2 (zenscript--get-token tokens)))
-                     rename)
+    (catch 'zenscript-parse-error
+      (while (and (zenscript--has-next-token tokens)
+                  (eq (car (zenscript--peek-token tokens))
+                      'T_IMPORT))
+        (let (fqname
+              (pos (nth 2 (zenscript--get-token tokens)))
+              rename)
 
-                 (zenscript--cons! (cadr (zenscript--require-token 'T_ID tokens
-                                                                   "identifier expected"))
-                                   fqname)
-                 (while (zenscript--optional-token 'T_DOT tokens)
-                   (zenscript--cons! (cadr (zenscript--require-token 'T_ID tokens
-                                                                     "identifier expected"))
-                                     fqname))
+          (zenscript--cons! (cadr (zenscript--require-token 'T_ID tokens
+                                                            "identifier expected"))
+                            fqname)
+          (while (zenscript--optional-token 'T_DOT tokens)
+            (zenscript--cons! (cadr (zenscript--require-token 'T_ID tokens
+                                                              "identifier expected"))
+                              fqname))
 
-                 (when (zenscript--optional-token 'T_AS tokens)
-                   (setq rename (cadr (zenscript--require-token 'T_ID tokens
-                                                                "identifier expected"))))
+          (when (zenscript--optional-token 'T_AS tokens)
+            (setq rename (cadr (zenscript--require-token 'T_ID tokens
+                                                         "identifier expected"))))
 
-                 (zenscript--require-token 'T_SEMICOLON tokens
-                                           "; expected")
+          (zenscript--require-token 'T_SEMICOLON tokens
+                                    "; expected")
 
-                 (zenscript--cons! (list (reverse fqname)
-                                         pos
-                                         rename)
-                                   imports)))
-             (while (zenscript--has-next-token tokens)
-               (pcase (car (zenscript--peek-token tokens))
-                 ((or 'T_GLOBAL 'T_STATIC)
-                  (zenscript--cons! (zenscript--parse-global tokens)
-                                    statements))
-                 ('T_FUNCTION
-                  (zenscript--cons! (zenscript--parse-function tokens)
-                                    functions))
-                 ('T_ZEN_CLASS
-                  (zenscript--cons! (zenscript--parse-zenclass tokens)
-                                    zenclasses))
-                 (_ (zenscript--cons! (zenscript--parse-statement tokens)
-                                      statements)))))))
-      (when caught
-        (throw 'zenscript-parse-error
-               (list 'PARSE_ERROR
-                     (list (reverse imports)
-                           (reverse functions)
-                           (reverse zenclasses)
-                           (reverse statements))
-                     (cadr caught)
-                     (car caught)))))
+          (zenscript--cons! (list (reverse fqname)
+                                  pos
+                                  rename)
+                            imports))))
+    (while (zenscript--has-next-token tokens)
+      (catch 'zenscript-parse-error
+        (pcase (car (zenscript--peek-token tokens))
+          ((or 'T_GLOBAL 'T_STATIC)
+           (zenscript--cons! (zenscript--parse-global tokens)
+                             statements))
+          ('T_FUNCTION
+           (zenscript--cons! (zenscript--parse-function tokens)
+                             functions))
+          ('T_ZEN_CLASS
+           (zenscript--cons! (zenscript--parse-zenclass tokens)
+                             zenclasses))
+          (_ (zenscript--cons! (zenscript--parse-statement tokens)
+                               statements)))))
     (list (reverse imports)
           (reverse functions)
           (reverse zenclasses)
@@ -645,7 +641,7 @@ name:
 
 arguments:
 
-  A list of arguments as returned by `zenscript--parse-function-arguments`.
+  A list of arguments as returned by `zenscript--parse-function-arguments'.
 
 type:
 
@@ -653,7 +649,7 @@ type:
 
 statements:
 
-  A list of statements, which are as returned by `zenscript--parse-statement`.
+  A list of statements, which are as returned by `zenscript--parse-statement'.
 
 function (argname [as type], argname [as type], ...) [as type] {
 ...contents... }"
@@ -721,17 +717,17 @@ name:
 fields:
 
   A list of fields, which are as returned by
-  `zenscript--parse-zenclass-field`.
+  `zenscript--parse-zenclass-field'.
 
 constructors:
 
   A list of constructors, which are as returned by
-  `zenscript--parse-zenclass-constructor`.
+  `zenscript--parse-zenclass-constructor'.
 
 methods:
 
   A list of methods, which are as returned by
-  `zenscript--parse-zenclass-method`."
+  `zenscript--parse-zenclass-method'."
   (zenscript--require-token 'T_ZEN_CLASS tokens
                             "zenClass expected")
   (let ((id (zenscript--require-token 'T_ID tokens
@@ -810,11 +806,11 @@ A list of the form:
 
 arguments:
 
-  The list of arguments, as returned by `zenscript--parse-function-arguments`.
+  The list of arguments, as returned by `zenscript--parse-function-arguments'.
 
 statements:
 
-  A list of statements, which are as returned by `zenscript--parse-statement`."
+  A list of statements, which are as returned by `zenscript--parse-statement'."
   (let ((arguments (zenscript--parse-function-arguments tokens))
         statements)
     (zenscript--require-token 'T_AOPEN tokens
@@ -836,7 +832,7 @@ name:
 
 arguments:
 
-  The list of arguments, as returned by `zenscript--parse-function-arguments`.
+  The list of arguments, as returned by `zenscript--parse-function-arguments'.
 
 type:
 
@@ -844,7 +840,7 @@ type:
 
 statements:
 
-  A list of statements, which are as returned by `zenscript--parse-statement`."
+  A list of statements, which are as returned by `zenscript--parse-statement'."
   (let ((id (zenscript--require-token 'T_ID tokens
                                       "identifier expected"))
         (arguments (zenscript--parse-function-arguments tokens))
@@ -886,7 +882,7 @@ The following types are possible:
     statements:
 
       A list of statements, which are as returned by
-      `zenscript--parse-statement`.
+      `zenscript--parse-statement'.
 
   S_RETURN:
 
@@ -895,7 +891,7 @@ The following types are possible:
     expression:
 
       An expression that is the value of this return
-      statement.  See `zenscript--parse-expression`.
+      statement.  See `zenscript--parse-expression'.
 
   S_VAR:
 
@@ -977,89 +973,99 @@ The following types are possible:
     expression:
 
       The expression to evaluate as a statement.
-      See `zenscript--parse-statement`."
+      See `zenscript--parse-statement'.
+
+  S_INVALID:
+
+    value: (message)
+
+      An invalid expression, something went wrong while parsing."
   (let* ((next (zenscript--peek-token tokens))
-         (statement
-          (pcase (car next)
-            ('T_AOPEN
-             (zenscript--get-token tokens)
-             (let (statements)
-               (while (not (zenscript--optional-token 'T_ACLOSE tokens))
-                 (zenscript--cons! (zenscript--parse-statement tokens) statements))
-               (list 'S_BLOCK (reverse statements))))
-            ('T_RETURN
-             (zenscript--get-token tokens)
-             (list 'S_RETURN
-                   (prog1
-                       (unless (eq 'T_SEMICOLON
-                                   (car (zenscript--peek-token tokens)))
-                         (zenscript--parse-expression tokens))
-                     (zenscript--require-token 'T_SEMICOLON tokens
-                                               "; expected"))))
-            ((or 'T_VAR
-                 'T_VAL)
-             (zenscript--get-token tokens)
-             (let* ((id (zenscript--require-token 'T_ID tokens
-                                                  "identifier expected"))
-                    initializer
-                    type)
-               (when (zenscript--optional-token 'T_AS tokens)
-                 (setq type (zenscript--parse-zentype tokens)))
-               (when (zenscript--optional-token 'T_ASSIGN tokens)
-                 (setq initializer (zenscript--parse-expression tokens)))
+         (caught
+          (catch 'zenscript-parse-error
+            (pcase (car next)
+              ('T_AOPEN
+               (zenscript--get-token tokens)
+               (let (statements)
+                 (while (not (zenscript--optional-token 'T_ACLOSE tokens))
+                   (zenscript--cons! (zenscript--parse-statement tokens) statements))
+                 (list 'S_BLOCK (reverse statements))))
+              ('T_RETURN
+               (zenscript--get-token tokens)
+               (list 'S_RETURN
+                     (prog1
+                         (unless (eq 'T_SEMICOLON
+                                     (car (zenscript--peek-token tokens)))
+                           (zenscript--parse-expression tokens))
+                       (zenscript--require-token 'T_SEMICOLON tokens
+                                                 "; expected"))))
+              ((or 'T_VAR
+                   'T_VAL)
+               (zenscript--get-token tokens)
+               (let* ((id (zenscript--require-token 'T_ID tokens
+                                                    "identifier expected"))
+                      initializer
+                      type)
+                 (when (zenscript--optional-token 'T_AS tokens)
+                   (setq type (zenscript--parse-zentype tokens)))
+                 (when (zenscript--optional-token 'T_ASSIGN tokens)
+                   (setq initializer (zenscript--parse-expression tokens)))
+                 (zenscript--require-token 'T_SEMICOLON tokens
+                                           "; expected")
+                 (list 'S_VAR id type initializer
+                       (eq (car next)
+                           'T_VAL))))
+              ('T_IF
+               (zenscript--get-token tokens)
+               (list 'S_IF
+                     (zenscript--parse-expression tokens)
+                     (zenscript--parse-statement tokens)
+                     (when (zenscript--optional-token 'T_ELSE tokens)
+                       (zenscript--parse-statement tokens))
+                     (nth 2 next)))
+              ('T_FOR
+               (zenscript--get-token tokens)
+               (list 'S_FOR
+                     (let (break
+                           names)
+                       (zenscript--cons! (zenscript--require-token 'T_ID tokens
+                                                                   "identifier expected")
+                                         names)
+                       (while (not break)
+                         (if (zenscript--optional-token 'T_COMMA tokens)
+                             (zenscript--cons! (zenscript--require-token 'T_ID tokens
+                                                                         "identifier expected")
+                                               names)
+                           (setq break t)))
+                       (reverse names))
+                     (progn
+                       (zenscript--require-token 'T_IN tokens
+                                                 "in expected")
+                       (zenscript--parse-expression tokens))
+                     (zenscript--parse-statement tokens)))
+              ('T_WHILE
+               (zenscript--get-token tokens)
+               (list 'S_WHILE
+                     (zenscript--parse-expression tokens)
+                     (zenscript--parse-statement tokens)))
+              ('T_BREAK
+               (zenscript--get-token tokens)
                (zenscript--require-token 'T_SEMICOLON tokens
                                          "; expected")
-               (list 'S_VAR id type initializer
-                     (eq (car next)
-                         'T_VAL))))
-            ('T_IF
-             (zenscript--get-token tokens)
-             (list 'S_IF
-                   (zenscript--parse-expression tokens)
-                   (zenscript--parse-statement tokens)
-                   (when (zenscript--optional-token 'T_ELSE tokens)
-                     (zenscript--parse-statement tokens))
-                   (nth 2 next)))
-            ('T_FOR
-             (zenscript--get-token tokens)
-             (list 'S_FOR
-                   (let (break
-                         names)
-                     (zenscript--cons! (zenscript--require-token 'T_ID tokens
-                                                                 "identifier expected")
-                                       names)
-                     (while (not break)
-                       (if (zenscript--optional-token 'T_COMMA tokens)
-                           (zenscript--cons! (zenscript--require-token 'T_ID tokens
-                                                                       "identifier expected")
-                                             names)
-                         (setq break t)))
-                     (reverse names))
-                   (progn
-                     (zenscript--require-token 'T_IN tokens
-                                               "in expected")
-                     (zenscript--parse-expression tokens))
-                   (zenscript--parse-statement tokens)))
-            ('T_WHILE
-             (zenscript--get-token tokens)
-             (list 'S_WHILE
-                   (zenscript--parse-expression tokens)
-                   (zenscript--parse-statement tokens)))
-            ('T_BREAK
-             (zenscript--get-token tokens)
-             (zenscript--require-token 'T_SEMICOLON tokens
-                                       "; expected")
-             (list 'S_BREAK))
-            ('T_CONTINUE
-             (zenscript--get-token tokens)
-             (zenscript--require-token 'T_SEMICOLON tokens
-                                       "; expected")
-             (list 'S_CONTINUE))
-            (_
-             (list 'S_EXPRESSION
-                   (prog1 (zenscript--parse-expression tokens)
-                     (zenscript--require-token 'T_SEMICOLON tokens
-                                               "; expected")))))))
+               (list 'S_BREAK))
+              ('T_CONTINUE
+               (zenscript--get-token tokens)
+               (zenscript--require-token 'T_SEMICOLON tokens
+                                         "; expected")
+               (list 'S_CONTINUE))
+              (_
+               (list 'S_EXPRESSION
+                     (prog1 (zenscript--parse-expression tokens)
+                       (zenscript--require-token 'T_SEMICOLON tokens
+                                                 "; expected")))))))
+         (statement (if (stringp caught)
+                        (list 'S_INVALID caught)
+                      caught)))
     (cons (car statement)
           (cons (nth 2 next)
                 (cdr statement)))))
@@ -1073,14 +1079,14 @@ A ZenType is represented as a list of the following format:
 
 value:
 
-  The value of the ZenType.  What `value` is depends on
+  The value of the ZenType.  What VALUE is depends on
   the type, described below.
 
 category:
 
   A symbol, the category of the ZenType.
   This may be any of those below.  The format of
-  `value` is also written for each entry:
+  VALUE is also written for each entry:
 
   C_RAW: (name)
 
@@ -1138,7 +1144,7 @@ category:
 
       The ZenType of values in this map.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let ((next (zenscript--get-token tokens))
         base)
     (pcase (car next)
@@ -1175,9 +1181,9 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
        (setq base (list 'C_LIST (zenscript--parse-zentype tokens)))
        (zenscript--require-token 'T_SQBRCLOSE tokens
                                  "] expected"))
-      (_ (throw 'zenscript-parse-error
-                (list (format "Unknown type: %s" (cadr next))
-                      next))))
+      (_ (zenscript--throw-parse-error
+          (format "Unknown type: %s" (cadr next))
+          next)))
     (while (zenscript--optional-token 'T_SQBROPEN tokens)
       (if (zenscript--optional-token 'T_SQBRCLOSE tokens)
           (setq base (list 'C_ARRAY base))
@@ -1206,7 +1212,7 @@ delegates to a layer below.  See each layer for
 details on the possible expression types at each layer.
 
 
-This layer delegates to `zenscript--parse-conditional`.
+This layer delegates to `zenscript--parse-conditional'.
 
 This layer reads the following expressions:
 
@@ -1255,18 +1261,18 @@ This layer reads the following expressions:
 
     value: (left right op)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let ((token (zenscript--peek-token tokens))
         left)
     (unless token
-      (throw 'zenscript-parse-error
-             (list "Unexpected end of file"
-                   ())))
+      (zenscript--throw-parse-error
+       "Unexpected end of file"
+       ()))
     (setq left (zenscript--parse-conditional tokens))
     (unless (zenscript--peek-token tokens)
-      (throw 'zenscript-parse-error
-             (list "Unexpected end of file"
-                   ())))
+      (zenscript--throw-parse-error
+       "Unexpected end of file"
+       ()))
 
     (or (pcase (car (zenscript--peek-token tokens))
           ('T_ASSIGN
@@ -1305,7 +1311,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-conditional (tokens)
   "Possibly read a conditional expression from TOKENS.
 
-This layer delegates to `zenscript--parse-or-or`.
+This layer delegates to `zenscript--parse-or-or'.
 
 This layer reads the following expressions:
 
@@ -1322,7 +1328,7 @@ This layer reads the following expressions:
 
   ?: (delegated)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let ((left (zenscript--parse-or-or tokens)))
     (let ((quest (zenscript--optional-token 'T_QUEST tokens)))
       (if quest
@@ -1355,7 +1361,7 @@ PARSE-NEXT is the function to delegate to."
 (defun zenscript--parse-or-or (tokens)
   "Possibly read an expression using ||s from TOKENS.
 
-Delegates to `zenscript--parse-and-and`
+Delegates to `zenscript--parse-and-and'
 
 Reads:
 
@@ -1366,14 +1372,14 @@ Reads:
 
     value: (left right)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (zenscript--parse-binary 'T_OR2 'E_OR2 tokens
                            #'zenscript--parse-and-and))
 
 (defun zenscript--parse-and-and (tokens)
   "Possibly read an expression using &&s from TOKENS.
 
-Delegates to `zenscript--parse-or`
+Delegates to `zenscript--parse-or'
 
 Reads:
 
@@ -1384,14 +1390,14 @@ Reads:
 
     value: (left right)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (zenscript--parse-binary 'T_AND2 'E_AND2 tokens
                            #'zenscript--parse-or))
 
 (defun zenscript--parse-or (tokens)
   "Possibly read an expression using |s from TOKENS.
 
-Delegates to `zenscript--parse-xor`
+Delegates to `zenscript--parse-xor'
 
 Reads:
 
@@ -1402,14 +1408,14 @@ Reads:
 
     value: (left right)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (zenscript--parse-binary 'T_OR 'E_OR tokens
                            #'zenscript--parse-xor))
 
 (defun zenscript--parse-xor (tokens)
   "Possibly read an expression using ^s from TOKENS.
 
-Delegates to `zenscript--parse-and`
+Delegates to `zenscript--parse-and'
 
 Reads:
 
@@ -1420,14 +1426,14 @@ Reads:
 
     value: (left right)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (zenscript--parse-binary 'T_XOR 'E_XOR tokens
                            #'zenscript--parse-and))
 
 (defun zenscript--parse-and (tokens)
   "Possibly read an expression using &s from TOKENS.
 
-Delegates to `zenscript--parse-comparison`
+Delegates to `zenscript--parse-comparison'
 
 Reads:
 
@@ -1438,14 +1444,14 @@ Reads:
 
     value: (left right)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (zenscript--parse-binary 'T_AND 'E_AND tokens
                            #'zenscript--parse-comparison))
 
 (defun zenscript--parse-comparison (tokens)
   "Possibly read a comparison expression from TOKENS.
 
-Delegates to `zenscript--parse-add`
+Delegates to `zenscript--parse-add'
 
 Reads:
 
@@ -1478,7 +1484,7 @@ Reads:
 
     value: (left right op)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let* ((left (zenscript--parse-add tokens))
          (type (pcase (car (zenscript--peek-token tokens))
                  ('T_EQ 'C_EQ)
@@ -1508,7 +1514,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-add (tokens)
   "Possibly read an addition-priority expression from TOKENS.
 
-Delegates to `zenscript--parse-mul`
+Delegates to `zenscript--parse-mul'
 
 Reads:
 
@@ -1525,7 +1531,7 @@ Reads:
 
     value: (left right op)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let ((left (zenscript--parse-mul tokens)))
     (while (progn
              (cond ((zenscript--optional-token 'T_PLUS tokens)
@@ -1546,7 +1552,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-mul (tokens)
   "Possibly read an multiplication-priority expression from TOKENS.
 
-Delegates to `zenscript--parse-unary`
+Delegates to `zenscript--parse-unary'
 
 Reads:
 
@@ -1563,7 +1569,7 @@ Reads:
 
     value: (left right op)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let ((left (zenscript--parse-unary tokens)))
     (while (progn
              (cond ((zenscript--optional-token 'T_MUL tokens)
@@ -1584,7 +1590,7 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
 (defun zenscript--parse-unary (tokens)
   "Possibly read a unary expression from TOKENS.
 
-Delegates to `zenscript--parse-postfix`
+Delegates to `zenscript--parse-postfix'
 
 Reads:
 
@@ -1598,7 +1604,7 @@ Reads:
 
     value: (expr op)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (pcase (car (zenscript--peek-token tokens))
     ('T_NOT (list 'E_UNARY
                   (progn
@@ -1747,17 +1753,17 @@ what about \\[IDIOT JAVA PREPROCESSOR]u?"
 
         (apply #'concat (reverse string-builder)))
     (args-out-of-range
-     (throw 'zenscript-parse-error
-            (list "Error parsing string"
-                  token)))))
+     (zenscript--throw-parse-error
+      "Error parsing string"
+      token))))
 
 (defun zenscript--parse-postfix (tokens)
   "Possibly read a postfix expression from TOKENS.
 
-Delegates to `zenscript--parse-primary`
+Delegates to `zenscript--parse-primary'
 
-  (expression) represents a call to `zenscript--parse-expression`
-  (zentype) represents a call to `zenscript--parse-zentype`
+  (expression) represents a call to `zenscript--parse-expression'
+  (zentype) represents a call to `zenscript--parse-zentype'
 
 Reads:
 
@@ -1822,7 +1828,7 @@ Reads:
 
     value: (base type)
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (let ((base (zenscript--parse-primary tokens)))
     (while
         (and (zenscript--peek-token tokens)
@@ -2033,7 +2039,7 @@ Reads:
 
     value: ()
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (pcase (car (zenscript--peek-token tokens))
     ('T_INTVALUE
      (let ((l (zenscript--decode-long (cadr (zenscript--get-token tokens)))))
@@ -2109,9 +2115,9 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
      (prog1 (zenscript--parse-expression tokens)
        (zenscript--require-token 'T_BRCLOSE tokens
                                  ") expected")))
-    (_ (throw 'zenscript-parse-error
-              (list "Invalid expression"
-                    (zenscript--get-token tokens))))))
+    (_ (zenscript--throw-parse-error
+        "Invalid expression"
+        (zenscript--get-token tokens)))))
 
 (defun zenscript--parse-global (tokens)
   "Parse the next global definition from TOKENS.
@@ -2132,7 +2138,7 @@ value:
 
   The expression that is the initializer of this binding.
 
-TOKENS must be a tokenstream from `zenscript--make-tokenstream`."
+TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
   (zenscript--get-token tokens)
   (let ((name (zenscript--require-token 'T_ID tokens
                                         "Global value requires a name!"))

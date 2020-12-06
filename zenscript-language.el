@@ -134,17 +134,48 @@ Returns a list of type names that can be imported."
 (defcustom zenscript-buffer-parse-idle-period 0.5
   "How long after idling should the buffer be parsed.
 
-See `zenscript-parse-buffer`."
+See `zenscript-parse-buffer'."
   :group 'zenscript
   :type #'numberp)
 
-(defvar zenscript--last-warning ()
-  "The last warning by `zenscript-parse-buffer`.")
+(defvar zenscript--language-overlays ()
+  "The list of overlays from `zenscript-parse-buffer'.")
+
+(defun zenscript-default-error-overlay (overlay message)
+  "The default `zenscript-make-error-overlay-function'.
+
+Sets the face of OVERLAY to `font-lock-warning-face', and adds the help-echo MESSAGE."
+  (overlay-put overlay 'face 'font-lock-warning-face)
+  (overlay-put overlay 'help-echo message))
+
+(defcustom zenscript-make-error-overlay-function #'zenscript-default-error-overlay
+  "The function to call to set overlay properties for syntax errors.
+
+The function is called with two arguments, the overlay and the error message."
+  :group 'zenscript
+  :type #'functionp)
+
+(defun zenscript--highlight-error (message token)
+  "Show MESSAGE as the error for TOKEN."
+  (let* ((start (if token
+                    (nth 2 token)
+                  (1- (point-max))))
+         (end (if token
+                  (+ start
+                     (length (cadr token)))
+                (point-max)))
+         (overlay (make-overlay start end
+                                () t)))
+    (push overlay zenscript--language-overlays)
+    (funcall zenscript-make-error-overlay-function overlay message)))
+
+;;;###autoload
+(add-hook 'zenscript-parse-error-hook #'zenscript--highlight-error)
 
 (defun zenscript-parse-buffer (buffer)
   "Parse the buffer BUFFER, refreshing the cache.
 
-This is run periodically while in `zenscript-mode`."
+This is run periodically while in `zenscript-mode'."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (when (eq major-mode 'zenscript-mode)
@@ -155,48 +186,28 @@ This is run periodically while in `zenscript-mode`."
            (zenscript-parse-buffer buffer)))
         (let ((hash (secure-hash 'md5 buffer)))
           (unless (string= hash (car zenscript--parse-buffer-cache))
-            (when zenscript--last-warning
-              (delete-overlay zenscript--last-warning)
-              (setq zenscript--last-warning ()))
+            (while zenscript--language-overlays
+              (delete-overlay (pop zenscript--language-overlays)))
             (setq zenscript--parse-buffer-cache
                   (cons hash
-                        (let ((caught
+                        (zenscript--parse-tokens
+                         (save-excursion
+                           (let ((caught
+                                  (catch 'zenscript-unrecognized-token
+                                    (zenscript--tokenize-buffer))))
+                             (if (listp caught)
+                                 caught
                                (catch 'zenscript-parse-error
-                                 (zenscript--parse-tokens
-                                  (save-excursion
-                                    (let ((caught
-                                           (catch 'zenscript-unrecognized-token
-                                             (zenscript--tokenize-buffer))))
-                                      (if (listp caught)
-                                          caught
-                                        (throw 'zenscript-parse-error
-                                               (list 'PARSE_ERROR
-                                                     ()
-                                                     (list 'T_UNKNOWN (char-to-string (char-after))
-                                                           (point))
-                                                     "Unrecognized token.")))))))))
-                          (if (eq 'PARSE_ERROR
-                                  (car caught))
-                              (prog1 (cadr caught)
-                                (let* ((token (nth 2 caught))
-                                       (start (if token
-                                                  (nth 2 token)
-                                                (1- (point-max))))
-                                       (end (if token
-                                                (+ start
-                                                   (length (cadr token)))
-                                              (point-max)))
-                                       (overlay (make-overlay start end
-                                                              () t)))
-                                  (overlay-put overlay 'face 'font-lock-warning-face)
-                                  (overlay-put overlay 'help-echo (nth 3 caught))
-                                  (setq zenscript--last-warning overlay)))
-                            caught))))))))))
+                                 (zenscript--throw-parse-error
+                                  "Unrecognized token"
+                                  (list 'T_UNKNOWN (char-to-string (char-after))
+                                        (point))))
+                               ()))))))))))))
 
 (defun zenscript--init-language ()
   "Initialize the language module."
   (make-local-variable 'zenscript--parse-buffer-cache)
-  (make-local-variable 'zenscript--last-warning)
+  (make-local-variable 'zenscript--warnings)
   (zenscript-parse-buffer (current-buffer)))
 
 (provide 'zenscript-language)

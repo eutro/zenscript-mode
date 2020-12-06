@@ -664,7 +664,8 @@ function (argname [as type], argname [as type], ...) [as type] {
         statements)
     (zenscript--require-token 'T_AOPEN tokens
                               "{ expected")
-    (while (not (zenscript--optional-token 'T_ACLOSE tokens))
+    (while (and (zenscript--has-next-token tokens)
+                (not (zenscript--optional-token 'T_ACLOSE tokens)))
       (zenscript--cons! (zenscript--parse-statement tokens) statements))
     (list name
           arguments
@@ -815,7 +816,8 @@ statements:
         statements)
     (zenscript--require-token 'T_AOPEN tokens
                               "{ expected")
-    (while (not (zenscript--optional-token 'T_ACLOSE tokens))
+    (while (and (zenscript--has-next-token tokens)
+                (not (zenscript--optional-token 'T_ACLOSE tokens)))
       (zenscript--cons! (zenscript--parse-statement tokens) statements))
     (list arguments (reverse statements))))
 
@@ -850,7 +852,8 @@ statements:
         statements)
     (zenscript--require-token 'T_AOPEN tokens
                               "{ expected")
-    (while (not (zenscript--optional-token 'T_ACLOSE tokens))
+    (while (and (zenscript--has-next-token tokens)
+                (not (zenscript--optional-token 'T_ACLOSE tokens)))
       (zenscript--cons! (zenscript--parse-statement tokens) statements))
     (list id arguments type (reverse statements))))
 
@@ -987,7 +990,8 @@ The following types are possible:
               ('T_AOPEN
                (zenscript--get-token tokens)
                (let (statements)
-                 (while (not (zenscript--optional-token 'T_ACLOSE tokens))
+                 (while (and (zenscript--has-next-token tokens)
+                             (not (zenscript--optional-token 'T_ACLOSE tokens)))
                    (zenscript--cons! (zenscript--parse-statement tokens) statements))
                  (list 'S_BLOCK (reverse statements))))
               ('T_RETURN
@@ -2065,7 +2069,8 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
            statements)
        (zenscript--require-token 'T_AOPEN tokens
                                  "{ expected")
-       (while (not (zenscript--optional-token 'T_ACLOSE tokens))
+       (while (and (zenscript--has-next-token tokens)
+                   (not (zenscript--optional-token 'T_ACLOSE tokens)))
          (zenscript--cons! (zenscript--parse-statement tokens) statements))
        (list 'E_FUNCTION
              arguments
@@ -2074,7 +2079,8 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
     ('T_LT
      (zenscript--get-token tokens)
      (let (btokens nexttoken)
-       (while (and (not (zenscript--optional-token 'T_GT tokens))
+       (while (and (zenscript--has-next-token tokens)
+                   (not (zenscript--optional-token 'T_GT tokens))
                    (setq nexttoken (zenscript--get-token tokens)))
          (zenscript--cons! nexttoken btokens))
        (list 'E_BRACKET (reverse btokens))))

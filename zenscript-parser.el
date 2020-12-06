@@ -475,7 +475,7 @@ Each hook is called with the error message and the token where it occured.")
          (list message token)))
 
 (defun zenscript--make-tokenstream (token-list)
-  "Make a tokenstream from a list of tokens, TOKEN-LIST."
+  "Make a tokenstream from a list of tokens, TOKEN-LIST, as returned by `zenscript--tokenize-buffer'."
   (lambda (op &rest args)
     (pcase op
       ('PEEK (car token-list))
@@ -526,29 +526,11 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
 (defun zenscript--parse-tokens (tokenlist)
   "Parse a list of ZenScript tokens.
 
-TOKENLIST is a list of tokens of the form
-
- (type val pos)
-
-As returned by `zenscript--next-token'.
-
-return:
-
-  The imports functions, classes and statements
-  accumulated so far, as would be returned
-  if there was no error.  See below.
-
-next-token:
-
-  The next token after the error was encountered.
-
-message:
-
-  The message that describes the cause of the error.
+TOKENLIST is a list of tokens as returned by `zenscript--tokenize-buffer'.
 
 Returns a list of the form
 
- (imports functions zenclasses statements)
+ (imports functions zenclasses statements globals)
 
 Which are lists of elements of the formats:
 
@@ -579,9 +561,13 @@ zenclasses:
 
 statements:
 
-  See `zenscript--parse-statement'."
+  See `zenscript--parse-statement'.
+
+globals:
+
+  See `zenscript--parse-global'."
   (let ((tokens (zenscript--make-tokenstream tokenlist))
-        imports functions zenclasses statements)
+        imports functions zenclasses statements globals)
     (catch 'zenscript-parse-error
       (while (and (zenscript--has-next-token tokens)
                   (eq (car (zenscript--peek-token tokens))
@@ -614,7 +600,7 @@ statements:
         (pcase (car (zenscript--peek-token tokens))
           ((or 'T_GLOBAL 'T_STATIC)
            (zenscript--cons! (zenscript--parse-global tokens)
-                             statements))
+                             globals))
           ('T_FUNCTION
            (zenscript--cons! (zenscript--parse-function tokens)
                              functions))
@@ -626,14 +612,15 @@ statements:
     (list (reverse imports)
           (reverse functions)
           (reverse zenclasses)
-          (reverse statements))))
+          (reverse statements)
+          (reverse globals))))
 
 (defun zenscript--parse-function (tokens)
   "Parse the next static function definition from TOKENS.
 
 Return a list of the form:
 
- (name arguments type statements)
+ (name arguments type statements start end)
 
 name:
 
@@ -651,8 +638,17 @@ statements:
 
   A list of statements, which are as returned by `zenscript--parse-statement'.
 
-function (argname [as type], argname [as type], ...) [as type] {
-...contents... }"
+start:
+
+  The position after the opening {
+
+end:
+
+  The position before the closing }
+
+function name(argname [as type], argname [as type], ...) [as type] {
+  ...statements...
+}"
   (zenscript--require-token 'T_FUNCTION tokens
                             "function expected")
   (let ((name (zenscript--require-token 'T_ID tokens
@@ -661,16 +657,19 @@ function (argname [as type], argname [as type], ...) [as type] {
         (type (if (zenscript--optional-token 'T_AS tokens)
                   (zenscript--parse-zentype tokens)
                 '(C_RAW "any")))
-        statements)
-    (zenscript--require-token 'T_AOPEN tokens
-                              "{ expected")
+        (start (1+ (nth 2 (zenscript--require-token 'T_AOPEN tokens
+                                                    "{ expected"))))
+        statements end)
     (while (and (zenscript--has-next-token tokens)
-                (not (zenscript--optional-token 'T_ACLOSE tokens)))
+                (not (let ((close (zenscript--optional-token 'T_ACLOSE tokens)))
+                       (and close (setq end (nth 2 close))))))
       (zenscript--cons! (zenscript--parse-statement tokens) statements))
     (list name
           arguments
           type
-          (reverse statements))))
+          (reverse statements)
+          start
+          end)))
 
 (defun zenscript--parse-function-arguments (tokens)
   "Parse a list of function arguments from TOKENS.
@@ -709,7 +708,7 @@ type:
 
 A list of the form:
 
- (name fields constructors methods)
+ (name fields constructors methods start end)
 
 name:
 
@@ -728,15 +727,23 @@ constructors:
 methods:
 
   A list of methods, which are as returned by
-  `zenscript--parse-zenclass-method'."
+  `zenscript--parse-zenclass-method'.
+
+start:
+
+  The position after the opening {
+
+end:
+
+  The position before the closing }"
   (zenscript--require-token 'T_ZEN_CLASS tokens
                             "zenClass expected")
   (let ((id (zenscript--require-token 'T_ID tokens
                                       "identifier expected"))
+        (start (1+ (nth 2 (zenscript--require-token 'T_AOPEN tokens
+                                                    "{ expected"))))
         keyword
         fields constructors methods)
-    (zenscript--require-token 'T_AOPEN tokens
-                              "{ expected")
     (while (setq keyword
                  (or (zenscript--optional-token 'T_VAL tokens)
                      (zenscript--optional-token 'T_VAR tokens)
@@ -755,13 +762,13 @@ methods:
         ('T_FUNCTION
          (zenscript--cons! (zenscript--parse-zenclass-method tokens)
                            methods))))
-    (zenscript--require-token 'T_ACLOSE tokens
-                              "} expected")
     (list id
           (reverse fields)
           (reverse constructors)
           (reverse methods)
-          (nth 2 id))))
+          start
+          (nth 2 (zenscript--require-token 'T_ACLOSE tokens
+                                           "} expected")))))
 
 (defun zenscript--parse-zenclass-field (tokens static)
   "Parse a field definition of a ZenClass from TOKENS.
@@ -803,7 +810,7 @@ STATIC should be true if the class field is static."
 
 A list of the form:
 
- (arguments statements)
+ (arguments statements start end)
 
 arguments:
 
@@ -811,22 +818,34 @@ arguments:
 
 statements:
 
-  A list of statements, which are as returned by `zenscript--parse-statement'."
+  A list of statements, which are as returned by `zenscript--parse-statement'.
+
+start:
+
+  The position after the opening {
+
+end:
+
+  The position before the closing }"
   (let ((arguments (zenscript--parse-function-arguments tokens))
-        statements)
-    (zenscript--require-token 'T_AOPEN tokens
-                              "{ expected")
+        (start (1+ (nth 2 (zenscript--require-token 'T_AOPEN tokens
+                                                    "{ expected"))))
+        statements end)
     (while (and (zenscript--has-next-token tokens)
-                (not (zenscript--optional-token 'T_ACLOSE tokens)))
+                (not (let ((close (zenscript--optional-token 'T_ACLOSE tokens)))
+                       (and close (setq end (nth 2 close))))))
       (zenscript--cons! (zenscript--parse-statement tokens) statements))
-    (list arguments (reverse statements))))
+    (list arguments
+          (reverse statements)
+          start
+          end)))
 
 (defun zenscript--parse-zenclass-method (tokens)
   "Parse a method definition of a ZenClass from TOKENS.
 
 A list of the form:
 
- (name arguments type statements)
+ (name arguments type statements start end)
 
 name:
 
@@ -842,35 +861,53 @@ type:
 
 statements:
 
-  A list of statements, which are as returned by `zenscript--parse-statement'."
+  A list of statements, which are as returned by `zenscript--parse-statement'.
+
+start:
+
+  The position after the opening {
+
+end:
+
+  The position before the closing }"
   (let ((id (zenscript--require-token 'T_ID tokens
                                       "identifier expected"))
         (arguments (zenscript--parse-function-arguments tokens))
         (type (if (zenscript--optional-token 'T_AS tokens)
                   (zenscript--parse-zentype tokens)
                 '(C_RAW "any")))
-        statements)
-    (zenscript--require-token 'T_AOPEN tokens
-                              "{ expected")
+        (start (1+ (nth 2 (zenscript--require-token 'T_AOPEN tokens
+                                                    "{ expected"))))
+        statements end)
     (while (and (zenscript--has-next-token tokens)
-                (not (zenscript--optional-token 'T_ACLOSE tokens)))
+                (not (let ((close (zenscript--optional-token 'T_ACLOSE tokens)))
+                       (and close (setq end (nth 2 close))))))
       (zenscript--cons! (zenscript--parse-statement tokens) statements))
-    (list id arguments type (reverse statements))))
+    (list id
+          arguments
+          type
+          (reverse statements)
+          start
+          end)))
 
 (defun zenscript--parse-statement (tokens)
   "Parse the next statement from TOKENS.
 
 A list of the form:
 
- (type position . value)
+ (type start after . value)
 
 type:
 
   The type of the statement, see below for possible values.
 
-position:
+start:
 
   The position at which this statement started.
+
+after:
+
+  The position of the next token after this statement, or `point-max'.
 
 value:
 
@@ -880,12 +917,16 @@ The following types are possible:
 
   S_BLOCK:
 
-    value: (statements)
+    value: (statements end)
 
     statements:
 
       A list of statements, which are as returned by
       `zenscript--parse-statement'.
+
+    end:
+
+      The position after the closing }
 
   S_RETURN:
 
@@ -989,11 +1030,12 @@ The following types are possible:
             (pcase (car next)
               ('T_AOPEN
                (zenscript--get-token tokens)
-               (let (statements)
+               (let (statements end)
                  (while (and (zenscript--has-next-token tokens)
-                             (not (zenscript--optional-token 'T_ACLOSE tokens)))
+                             (not (let ((close (zenscript--optional-token 'T_ACLOSE tokens)))
+                                    (and close (setq end (nth 2 close))))))
                    (zenscript--cons! (zenscript--parse-statement tokens) statements))
-                 (list 'S_BLOCK (reverse statements))))
+                 (list 'S_BLOCK (reverse statements) end)))
               ('T_RETURN
                (zenscript--get-token tokens)
                (list 'S_RETURN
@@ -1025,8 +1067,7 @@ The following types are possible:
                      (zenscript--parse-expression tokens)
                      (zenscript--parse-statement tokens)
                      (when (zenscript--optional-token 'T_ELSE tokens)
-                       (zenscript--parse-statement tokens))
-                     (nth 2 next)))
+                       (zenscript--parse-statement tokens))))
               ('T_FOR
                (zenscript--get-token tokens)
                (list 'S_FOR
@@ -1070,9 +1111,14 @@ The following types are possible:
          (statement (if (stringp caught)
                         (list 'S_INVALID caught)
                       caught)))
-    (cons (car statement)
-          (cons (nth 2 next)
-                (cdr statement)))))
+    (cons
+     (car statement)
+     (cons
+      (nth 2 next)
+      (cons
+       (or (nth 2 (zenscript--peek-token tokens))
+           (point-max))
+       (cdr statement))))))
 
 (defun zenscript--parse-zentype (tokens)
   "Parse the next ZenType from TOKENS.
@@ -1961,13 +2007,12 @@ Reads:
 
     An anonymous function.
 
-    value: (arguments return-type statements)
+    value: (arguments return-type statements start end)
 
       arguments:
 
-        A list of arguments, of the form:
-
-         (name type pos)
+        A list of arguments, as returned by
+        `zenscript--parse-function-arguments'.
 
         name:
 
@@ -1980,6 +2025,14 @@ Reads:
         pos:
 
           The pointer position the identifier token appeared at.
+
+        start:
+
+          The position after the opening {
+
+        end:
+
+          The position before the closing }
 
       return-type:
 
@@ -2066,16 +2119,19 @@ TOKENS must be a tokenstream from `zenscript--make-tokenstream'."
            (return-type (if (zenscript--optional-token 'T_AS tokens)
                             (zenscript--parse-zentype tokens)
                           '(C_RAW "any")))
-           statements)
-       (zenscript--require-token 'T_AOPEN tokens
-                                 "{ expected")
+           (start (1+ (nth 2 (zenscript--require-token 'T_AOPEN tokens
+                                                       "{ expected"))))
+           statements end)
        (while (and (zenscript--has-next-token tokens)
-                   (not (zenscript--optional-token 'T_ACLOSE tokens)))
+                   (not (let ((close (zenscript--optional-token 'T_ACLOSE tokens)))
+                          (and close (setq end (nth 2 close))))))
          (zenscript--cons! (zenscript--parse-statement tokens) statements))
        (list 'E_FUNCTION
              arguments
              return-type
-             (reverse statements))))
+             (reverse statements)
+             start
+             end)))
     ('T_LT
      (zenscript--get-token tokens)
      (let (btokens nexttoken)

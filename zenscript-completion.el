@@ -36,7 +36,8 @@
   (all-completions prefix
                    (append zenscript-all-keywords
                            zenscript-constants
-                           (zenscript--buffer-vals))))
+                           (zenscript--buffer-vals)
+                           (mapcar #'car (zenscript--get-bindings)))))
 
 (defun zenscript-complete-import (prefix)
   "Complete the import PREFIX."
@@ -61,7 +62,7 @@
 
 (defun zenscript--looking-at-member-access-p ()
   "Return non-nil if looking at member access."
-  (zenscript--looking-at-backwards-p "\\.\\(\\w*\\)"))
+  (zenscript--looking-at-backwards-p "\\.\\(\\([a-zA-Z_][a-zA-Z_0-9]*\\)?\\)"))
 
 (defun zenscript--complete-preprocessor (prefix)
   "Complete the preprocessor beginning with PREFIX."
@@ -77,7 +78,7 @@
   (cond ((zenscript--looking-at-import-p)
          (let ((bounds (bounds-of-thing-at-point 'symbol)))
            (list (if bounds (car bounds) (point))
-                 (if bounds (cdr bounds) (point))
+                 (point)
                  (completion-table-dynamic #'zenscript-complete-import))))
         ((zenscript--looking-at-member-access-p)
          (list (match-beginning 1)
@@ -87,9 +88,9 @@
          (list (match-beginning 0)
                (match-end 0)
                (completion-table-dynamic #'zenscript--complete-preprocessor)))
-        (t (let ((bounds (bounds-of-thing-at-point 'symbol)))
+        (t (let ((bounds (bounds-of-thing-at-point 'zenscript-identifier)))
              (list (if bounds (car bounds) (point))
-                   (if bounds (cdr bounds) (point))
+                   (point)
                    (completion-table-dynamic #'zenscript-complete-other))))))
 
 (defun zenscript--init-completion ()

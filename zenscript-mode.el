@@ -20,7 +20,7 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-;; Version: 1.1.0-SNAPSHOT
+;; Version: 1.2.0
 ;; URL: https://github.com/eutropius225/zenscript-mode
 ;; Package-Requires: ((emacs "25.1"))
 
@@ -43,7 +43,7 @@
   :group 'languages)
 
 (defconst zenscript-mode-version
-  "1.1.0-SNAPSHOT"
+  "1.2.0"
   "The current version of `zenscript-mode`.")
 
 (defconst zenscript-docs-base-url "https://docs.blamejared.com/"
@@ -82,6 +82,7 @@
   (let ((keymap (make-sparse-keymap)))
     (define-key keymap (kbd "C-c C-v C-d") #'zenscript-view-docs)
     (define-key keymap (kbd "C-c C-s C-d") #'zenscript-search-docs)
+    (define-key keymap (kbd "M-.") #'zenscript-goto-definition-at-point)
     keymap))
 
 ;;;###autoload

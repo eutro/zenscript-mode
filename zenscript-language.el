@@ -378,7 +378,9 @@ Internally, this uses `zenscript--parse-tokens' and `zenscript--tokenize-buffer'
     (with-current-buffer buffer
       (when (eq major-mode 'zenscript-mode)
         (run-with-idle-timer
-         zenscript-buffer-parse-idle-period
+         (let ((cit (current-idle-time)))
+           (if cit (time-add cit zenscript-buffer-parse-idle-period)
+             zenscript-buffer-parse-idle-period))
          ()
          (lambda ()
            (zenscript-parse-buffer buffer)))

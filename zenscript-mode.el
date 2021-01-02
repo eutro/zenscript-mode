@@ -20,7 +20,7 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-;; Version: 1.2.0
+;; Version: 1.2.1
 ;; URL: https://github.com/eutropius225/zenscript-mode
 ;; Package-Requires: ((emacs "25.1"))
 
@@ -43,7 +43,7 @@
   :group 'languages)
 
 (defconst zenscript-mode-version
-  "1.2.0"
+  "1.2.1"
   "The current version of `zenscript-mode`.")
 
 (defconst zenscript-docs-base-url "https://docs.blamejared.com/"

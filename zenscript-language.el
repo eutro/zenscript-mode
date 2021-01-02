@@ -368,20 +368,17 @@ See `zenscript--parse-statement'."
           (nth 3 parsed))
     nil))
 
-(defun zenscript-parse-buffer (buffer)
+(defun zenscript-parse-buffer (buffer &optional timer)
   "Parse the buffer BUFFER, refreshing the cache.
 
-This is run periodically while in `zenscript-mode'.
+This is run periodically while in `zenscript-mode', on the idle TIMER.
 
 Internally, this uses `zenscript--parse-tokens' and `zenscript--tokenize-buffer'."
-  (when (buffer-live-p buffer)
+  (if (not (buffer-live-p buffer))
+      (when timer (cancel-timer timer))
     (with-current-buffer buffer
-      (when (eq major-mode 'zenscript-mode)
-        (run-with-idle-timer
-         zenscript-buffer-parse-idle-period
-         ()
-         (lambda ()
-           (zenscript-parse-buffer buffer)))
+      (if (not (eq major-mode 'zenscript-mode))
+          (when timer (cancel-timer timer))
         (let ((hash (secure-hash 'md5 buffer)))
           (unless (string= hash (car zenscript--parse-buffer-cache))
             (while zenscript--language-overlays
@@ -498,7 +495,12 @@ If ARG is omitted or nil, move point backward one identifier."
   "Initialize the language module."
   (make-local-variable 'zenscript--parse-buffer-cache)
   (make-local-variable 'zenscript--warnings)
-  (zenscript-parse-buffer (current-buffer)))
+  (make-local-variable 'zenscript-buffer-parse-timer)
+  ;; `run-with-idle-timer', but passing the timer to the function
+  (let ((timer (timer-create)))
+    (timer-set-function timer #'zenscript-parse-buffer (list (current-buffer) timer))
+    (timer-set-idle-time timer zenscript-buffer-parse-idle-period t)
+    (timer-activate-when-idle timer t)))
 
 (provide 'zenscript-language)
 ;;; zenscript-language.el ends here

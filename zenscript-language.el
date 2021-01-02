@@ -411,6 +411,7 @@ at the start, and nil if C is not valid anywhere."
       (and (<= ?0 c ?9)
            'not-start)))
 
+;;;###autoload
 (defun forward-zenscript-identifier (&optional arg)
   "Move forward until encountering the end of a ZenScript identifier.
 With argument ARG, do this that many times.
@@ -432,6 +433,7 @@ If ARG is omitted or nil, move point forward one identifier."
           (forward-char))
         (setq times (1- times)))))))
 
+;;;###autoload
 (defun backward-zenscript-identifier (&optional arg)
   "Move backward until encountering the beginning of a ZenScript identifier.
 With argument ARG, do this that many times.

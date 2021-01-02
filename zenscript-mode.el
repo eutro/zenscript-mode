@@ -83,6 +83,10 @@
     (define-key keymap (kbd "C-c C-v C-d") #'zenscript-view-docs)
     (define-key keymap (kbd "C-c C-s C-d") #'zenscript-search-docs)
     (define-key keymap (kbd "M-.") #'zenscript-goto-definition-at-point)
+    (define-key keymap (kbd "M-f") #'forward-zenscript-identifier)
+    (define-key keymap (kbd "M-b") #'backward-zenscript-identifier)
+    (define-key keymap (kbd "<M-right>") #'forward-zenscript-identifier)
+    (define-key keymap (kbd "<M-left>") #'backward-zenscript-identifier)
     keymap))
 
 ;;;###autoload
